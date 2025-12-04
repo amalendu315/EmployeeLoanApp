@@ -1,8 +1,8 @@
-﻿🏦 Employee Loan Management System (CRM)
+﻿##🏦 Employee Loan Management System (CRM)
 
-A modern, full-stack Loan Management CRM built with .NET 8 Blazor Server and MudBlazor. This application streamlines the loan lifecycle for organizations, from employee application to HR sanctioning, agreement signing, and final disbursement.
+#A modern, full-stack Loan Management CRM built with .NET 8 Blazor Server and MudBlazor. This application streamlines the loan lifecycle for organizations, from employee application to HR sanctioning, agreement signing, and final disbursement.
 
-🚀 Features
+##🚀 Features
 
 🔹 1. Comprehensive Loan Lifecycle (3-Stage Workflow)
 
