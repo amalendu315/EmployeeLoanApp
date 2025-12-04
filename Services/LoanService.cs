@@ -7,33 +7,20 @@ namespace EmployeeLoanApp.Services
     public class LoanService
     {
         private readonly IDbContextFactory<EmployeeLoanContext> _factory;
-        private readonly EmailService _emailService; // Inject Email Service
+        private readonly DigiGoService _digiGoService; // Switched to DigiGo
 
-        public LoanService(IDbContextFactory<EmployeeLoanContext> factory, EmailService emailService)
+        public LoanService(IDbContextFactory<EmployeeLoanContext> factory, DigiGoService digiGoService)
         {
             _factory = factory;
-            _emailService = emailService;
+            _digiGoService = digiGoService;
         }
 
-        public async Task<LoanApplication?> GetActiveOrPendingLoanAsync(int employeeId)
-        {
-            using var context = await _factory.CreateDbContextAsync();
-            return await context.LoanApplications
-                .Where(l => l.EmployeeID == employeeId &&
-                           (l.ApplicationStatus == "Pending Approval" ||
-                            l.ApplicationStatus == "Pending Agreement" ||
-                            l.ApplicationStatus == "Pending Payment" ||
-                            l.ApplicationStatus == "Active"))
-                .OrderByDescending(l => l.SubmissionDate)
-                .FirstOrDefaultAsync();
-        }
-
+        // --- MASTER DATA METHODS --- (Kept as is)
         public async Task<List<Company>> GetCompaniesAsync()
         {
             using var context = await _factory.CreateDbContextAsync();
             return await context.Companies.Where(x => x.IsActive).ToListAsync();
         }
-
         public async Task AddCompanyAsync(string name)
         {
             using var context = await _factory.CreateDbContextAsync();
@@ -43,25 +30,18 @@ namespace EmployeeLoanApp.Services
                 await context.SaveChangesAsync();
             }
         }
-
         public async Task DeleteCompanyAsync(int id)
         {
             using var context = await _factory.CreateDbContextAsync();
             var item = await context.Companies.FindAsync(id);
-            if (item != null)
-            {
-                context.Companies.Remove(item); // Or set IsActive = false
-                await context.SaveChangesAsync();
-            }
+            if (item != null) { context.Companies.Remove(item); await context.SaveChangesAsync(); }
         }
 
-        // --- MASTER DATA: LOAN PURPOSES ---
         public async Task<List<LoanPurpose>> GetLoanPurposesAsync()
         {
             using var context = await _factory.CreateDbContextAsync();
             return await context.LoanPurposes.Where(x => x.IsActive).ToListAsync();
         }
-
         public async Task AddLoanPurposeAsync(string name)
         {
             using var context = await _factory.CreateDbContextAsync();
@@ -71,25 +51,18 @@ namespace EmployeeLoanApp.Services
                 await context.SaveChangesAsync();
             }
         }
-
         public async Task DeleteLoanPurposeAsync(int id)
         {
             using var context = await _factory.CreateDbContextAsync();
             var item = await context.LoanPurposes.FindAsync(id);
-            if (item != null)
-            {
-                context.LoanPurposes.Remove(item);
-                await context.SaveChangesAsync();
-            }
+            if (item != null) { context.LoanPurposes.Remove(item); await context.SaveChangesAsync(); }
         }
 
-        // --- MASTER DATA: APPLICATION TYPES ---
         public async Task<List<ApplicationType>> GetApplicationTypesAsync()
         {
             using var context = await _factory.CreateDbContextAsync();
             return await context.ApplicationTypes.Where(x => x.IsActive).ToListAsync();
         }
-
         public async Task AddApplicationTypeAsync(string name)
         {
             using var context = await _factory.CreateDbContextAsync();
@@ -99,25 +72,30 @@ namespace EmployeeLoanApp.Services
                 await context.SaveChangesAsync();
             }
         }
-
         public async Task DeleteApplicationTypeAsync(int id)
         {
             using var context = await _factory.CreateDbContextAsync();
             var item = await context.ApplicationTypes.FindAsync(id);
-            if (item != null)
-            {
-                context.ApplicationTypes.Remove(item);
-                await context.SaveChangesAsync();
-            }
+            if (item != null) { context.ApplicationTypes.Remove(item); await context.SaveChangesAsync(); }
+        }
+        // --- NEW: MISSING METHOD FOR MY LOANS PAGE ---
+        public async Task<List<LoanApplication>> GetMyLoansAsync()
+        {
+            using var context = await _factory.CreateDbContextAsync();
+            // In a real app, filter by logged-in user. For demo, return all.
+            return await context.LoanApplications
+                .Include(l => l.Employee)
+                .OrderByDescending(l => l.SubmissionDate)
+                .ToListAsync();
         }
 
+        // --- LOAN & EMPLOYEE METHODS ---
         public async Task<List<Employee>> GetAllEmployeesAsync()
         {
             using var context = await _factory.CreateDbContextAsync();
             return await context.Employees.ToListAsync();
         }
 
-        // Expanded for Profile View
         public async Task<Employee?> GetEmployeeWithLoansAsync(int employeeId)
         {
             using var context = await _factory.CreateDbContextAsync();
@@ -133,12 +111,23 @@ namespace EmployeeLoanApp.Services
                 .ToListAsync();
         }
 
-        // Updated Create to include Opening Balances
+        public async Task<LoanApplication?> GetActiveOrPendingLoanAsync(int employeeId)
+        {
+            using var context = await _factory.CreateDbContextAsync();
+            return await context.LoanApplications
+                .Where(l => l.EmployeeID == employeeId &&
+                           (l.ApplicationStatus == "Pending Approval" ||
+                            l.ApplicationStatus == "Pending Agreement" ||
+                            l.ApplicationStatus == "Pending Payment" ||
+                            l.ApplicationStatus == "Active"))
+                .OrderByDescending(l => l.SubmissionDate)
+                .FirstOrDefaultAsync();
+        }
+
         public async Task<bool> CreateEmployeeAsync(Employee emp)
         {
             using var context = await _factory.CreateDbContextAsync();
             if (await context.Employees.AnyAsync(e => e.EmployeeCode == emp.EmployeeCode)) return false;
-
             context.Employees.Add(emp);
             await context.SaveChangesAsync();
             return true;
@@ -164,12 +153,10 @@ namespace EmployeeLoanApp.Services
         {
             using var context = await _factory.CreateDbContextAsync();
             if (app.LoanAmountRequested <= 0) return false;
-
             if (app.Employee != null && app.Employee.EmployeeID > 0)
             {
                 context.Entry(app.Employee).State = EntityState.Unchanged;
             }
-
             app.ApplicationStatus = "Pending Approval";
             context.LoanApplications.Add(app);
             await context.SaveChangesAsync();
@@ -186,19 +173,17 @@ namespace EmployeeLoanApp.Services
                 .ToListAsync();
         }
 
-        // --- CORE WORKFLOW LOGIC ---
-
-        // STEP 1: HR Sanctions -> Sends Email -> Status: Pending Agreement
+        // STEP 1: HR Sanctions -> Trigger DigiGo -> Status: Pending Agreement
         public async Task ApproveLoanAsync(LoanApproval approval)
         {
             using var context = await _factory.CreateDbContextAsync();
             using var transaction = await context.Database.BeginTransactionAsync();
             try
             {
-                // 1. Save Approval Record (Includes AdminComments)
+                // 1. Save Approval
                 context.LoanApprovals.Add(approval);
 
-                // 2. Update Application Status
+                // 2. Update Status
                 var application = await context.LoanApplications
                     .Include(a => a.Employee)
                     .FirstOrDefaultAsync(a => a.ApplicationID == approval.ApplicationID);
@@ -207,10 +192,12 @@ namespace EmployeeLoanApp.Services
                 {
                     application.ApplicationStatus = "Pending Agreement";
 
-                    // 3. Trigger Email (Fire and Forget)
+                    // 3. Send to DigiGo for Signature (API Call)
                     if (application.Employee != null)
                     {
-                        _ = _emailService.SendAgreementMailAsync(application.Employee, application, approval);
+                        // This sends the prefilled agreement to the user's email/phone via DigiGo
+                        // The Webhook (WebhookController) will listen for the 'signed' event
+                        var requestId = await _digiGoService.SendAgreementForSignatureAsync(application.Employee, application, approval);
                     }
                 }
 
@@ -224,19 +211,18 @@ namespace EmployeeLoanApp.Services
             }
         }
 
-        // STEP 2: Zoho Webhook/Callback hits this (Simulated via Button for now)
+        // STEP 2: Webhook calls this when DigiGo confirms signing
         public async Task ConfirmAgreementSignedAsync(int applicationId)
         {
             using var context = await _factory.CreateDbContextAsync();
             var app = await context.LoanApplications.FindAsync(applicationId);
             if (app != null)
             {
-                app.ApplicationStatus = "Pending Payment";
+                app.ApplicationStatus = "Pending Payment"; // Auto-update status
                 await context.SaveChangesAsync();
             }
         }
 
-        // STEP 3: Finance Disburses Money
         public async Task DisburseLoanAsync(int applicationId)
         {
             using var context = await _factory.CreateDbContextAsync();

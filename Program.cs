@@ -10,16 +10,20 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
+builder.Services.AddControllers(); // REQUIRED: For Webhook Controller
+builder.Services.AddHttpClient();  // REQUIRED: For DigiGo Service to make API calls
+
 // 1. MudBlazor Service
 builder.Services.AddMudServices();
-builder.Services.AddScoped<EmailService>();
-// 2. FIX: Use 'AddDbContextFactory' instead of 'AddDbContext'
-// This is critical for Blazor Server concurrency safety.
+
+// 2. Database
 builder.Services.AddDbContextFactory<EmployeeLoanContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// 3. Loan Logic Service
+// 3. Custom Services
 builder.Services.AddScoped<LoanService>();
+builder.Services.AddScoped<DigiGoService>(); // Register DigiGo
+builder.Services.AddScoped<EmailService>();  // Register Email
 
 var app = builder.Build();
 
@@ -33,6 +37,9 @@ if (!app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseAntiforgery();
+
+// REQUIRED: Activate the Webhook routes
+app.MapControllers();
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();

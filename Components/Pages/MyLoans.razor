@@ -1,0 +1,79 @@
+﻿@page "/my-loans"
+@using EmployeeLoanApp.Services
+@using EmployeeLoanApp.Models
+@inject LoanService LoanService
+@inject ISnackbar Snackbar
+@rendermode InteractiveServer
+
+<PageTitle>My Applications | Kalyana Impex</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+    <MudText Typo="Typo.h4" Class="mb-4" Color="Color.Primary"><b>My Loan Applications</b></MudText>
+
+    @if (_myLoans == null)
+    {
+        <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+    }
+    else
+    {
+        <MudTable Items="@_myLoans" Hover="true" Striped="true" Elevation="2">
+            <HeaderContent>
+                <MudTh>App ID</MudTh>
+                <MudTh>Amount</MudTh>
+                <MudTh>Date</MudTh>
+                <MudTh>Status</MudTh>
+                <MudTh>Action / Info</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>#@context.ApplicationID</MudTd>
+                <MudTd>₹@context.LoanAmountRequested.ToString("N0")</MudTd>
+                <MudTd>@context.SubmissionDate.ToShortDateString()</MudTd>
+                <MudTd>
+                    @if (context.ApplicationStatus == "Pending Agreement")
+                    {
+                        <MudChip T="string" Color="Color.Info" Size="Size.Small">Agreement Sent</MudChip>
+                    }
+                    else if (context.ApplicationStatus == "Pending Payment")
+                    {
+                        <MudChip T="string" Color="Color.Success" Size="Size.Small">Signed & Verified</MudChip>
+                    }
+                    else
+                    {
+                        <MudChip T="string" Color="Color.Default" Size="Size.Small">@context.ApplicationStatus</MudChip>
+                    }
+                </MudTd>
+                <MudTd>
+                    @if (context.ApplicationStatus == "Pending Agreement")
+                    {
+                        <!-- Informational message instead of a button -->
+                        <MudAlert Severity="Severity.Info" Dense="true" Class="py-1">
+                            Check your email to sign the agreement.
+                        </MudAlert>
+                    }
+                    else if (context.ApplicationStatus == "Pending Payment")
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Success">Waiting for Disbursement</MudText>
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">--</MudText>
+                    }
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    }
+</MudContainer>
+
+@code {
+    private List<LoanApplication> _myLoans = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadLoans();
+    }
+
+    private async Task LoadLoans()
+    {
+        _myLoans = await LoanService.GetMyLoansAsync();
+    }
+}

@@ -13,6 +13,7 @@
     <link rel="stylesheet" href="EmployeeLoanApp.styles.css" />
     <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap" rel="stylesheet" />
     <link href="_content/MudBlazor/MudBlazor.min.css" rel="stylesheet" />
+    <script type="text/javascript" src="https://app.digio.in/sdk/v11/digio.js"></script>
     <HeadOutlet @rendermode="InteractiveServer" />
 </head>
 
@@ -20,6 +21,30 @@
     <Routes @rendermode="InteractiveServer" />
     <script src="_framework/blazor.web.js"></script>
     <script src="_content/MudBlazor/MudBlazor.min.js"></script>
+    <!-- DIGIO INTEROP SCRIPT -->
+    <script>
+        window.triggerDigioSign = (documentId, identifier, dotNetHelper) => {
+            var options = {
+                environment: 'sandbox', // 'production' for live
+                callback: function (response) {
+                    if (response.hasOwnProperty("error_code")) {
+                        console.log("error occurred in process");
+                        dotNetHelper.invokeMethodAsync('OnSignError', response.message);
+                    } else {
+                        console.log("signing completed successfully");
+                        // response contains { msg: "success", document_id: "...", ... }
+                        dotNetHelper.invokeMethodAsync('OnSignSuccess', response.document_id);
+                    }
+                },
+                logo: 'https://img.icons8.com/color/48/money-bag.png',
+                is_iframe: true // Opens in a popup/iframe
+            };
+
+            var digio = new Digio(options);
+            digio.init();
+            digio.submit(documentId, identifier);
+        };
+    </script>
 </body>
 
 </html>
