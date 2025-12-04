@@ -1,0 +1,23 @@
+Visual Studio
+
+.vs/
+bin/
+obj/
+*.user
+*.suo
+
+.NET
+
+[Dd]ebug/
+[Rr]elease/
+*.pubxml
+
+Uploads (Don't sync actual file uploads to git)
+
+wwwroot/uploads/
+
+Windows
+
+Thumbs.db
+ehthumbs.db
+Desktop.ini

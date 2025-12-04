@@ -1,0 +1,57 @@
+﻿@inherits LayoutComponentBase
+
+
+<MudThemeProvider Theme="_crmTheme" />
+<MudDialogProvider />
+<MudSnackbarProvider />
+<MudPopoverProvider /><!-- CRITICAL: This is the missing line causing the crash -->
+
+<MudLayout>
+    <MudAppBar Elevation="1" Color="Color.Surface" Fixed="true" Class="border-b-2">
+        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Primary" Edge="Edge.Start" OnClick="@((e) => DrawerToggle())" />
+        <MudText Typo="Typo.h5" Color="Color.Primary" Class="ml-3" Style="font-weight:600;">Loan CRM</MudText>
+        <MudSpacer />
+        <MudAvatar Color="Color.Primary">HR</MudAvatar>
+    </MudAppBar>
+
+    <MudDrawer @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Always" Elevation="2">
+        <MudNavMenu>
+            <MudText Typo="Typo.subtitle2" Class="pa-4">MAIN MENU</MudText>
+            <MudNavLink Href="/" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard">Dashboard</MudNavLink>
+            <MudNavLink Href="/apply" Icon="@Icons.Material.Filled.NoteAdd">New Application</MudNavLink>
+            @* <MudNavLink Href="/admin" Icon="@Icons.Material.Filled.AdminPanelSettings">Approvals (HR)</MudNavLink> *@
+            <MudNavLink Href="/employees" Icon="@Icons.Material.Filled.People">Manage Employees</MudNavLink>
+        </MudNavMenu>
+    </MudDrawer>
+
+    <MudMainContent Class="mud-background-gray">
+        <MudContainer MaxWidth="MaxWidth.Large" Class="mt-8">
+            @Body
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    bool _drawerOpen = true;
+    void DrawerToggle() => _drawerOpen = !_drawerOpen;
+
+    private MudTheme _crmTheme = new MudTheme()
+    {
+        PaletteLight = new PaletteLight()
+        {
+            Primary = "#6EC1E4",
+            Secondary = "#54595F",
+            TextPrimary = "#54595F",
+            TextSecondary = "#7A7A7A",
+            Success = "#61CE70",
+            Info = "#4054B2",
+            Background = "#F3F5F7",
+            Surface = "#FFFFFF",
+            AppbarBackground = "#FFFFFF"
+        },
+        Typography = new Typography()
+        {
+            Default = new DefaultTypography() { FontFamily = new[] { "Open Sans", "Helvetica", "Arial", "sans-serif" } }
+        }
+    };
+}

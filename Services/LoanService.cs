@@ -1,0 +1,155 @@
+﻿using EmployeeLoanApp.Data;
+using EmployeeLoanApp.Models;
+using Microsoft.EntityFrameworkCore;
+
+namespace EmployeeLoanApp.Services
+{
+    public class LoanService
+    {
+        private readonly IDbContextFactory<EmployeeLoanContext> _factory;
+        private readonly EmailService _emailService; // Inject Email Service
+
+        public LoanService(IDbContextFactory<EmployeeLoanContext> factory, EmailService emailService)
+        {
+            _factory = factory;
+            _emailService = emailService;
+        }
+
+        public async Task<List<Employee>> GetAllEmployeesAsync()
+        {
+            using var context = await _factory.CreateDbContextAsync();
+            return await context.Employees.ToListAsync();
+        }
+
+        // Expanded for Profile View
+        public async Task<Employee?> GetEmployeeWithLoansAsync(int employeeId)
+        {
+            using var context = await _factory.CreateDbContextAsync();
+            return await context.Employees.FindAsync(employeeId);
+        }
+
+        public async Task<List<LoanApplication>> GetLoansByEmployeeIdAsync(int employeeId)
+        {
+            using var context = await _factory.CreateDbContextAsync();
+            return await context.LoanApplications
+                .Where(l => l.EmployeeID == employeeId)
+                .OrderByDescending(l => l.SubmissionDate)
+                .ToListAsync();
+        }
+
+        // Updated Create to include Opening Balances
+        public async Task<bool> CreateEmployeeAsync(Employee emp)
+        {
+            using var context = await _factory.CreateDbContextAsync();
+            if (await context.Employees.AnyAsync(e => e.EmployeeCode == emp.EmployeeCode)) return false;
+
+            context.Employees.Add(emp);
+            await context.SaveChangesAsync();
+            return true;
+        }
+
+        public async Task<int> ImportEmployeesAsync(List<Employee> employees)
+        {
+            using var context = await _factory.CreateDbContextAsync();
+            int count = 0;
+            foreach (var emp in employees)
+            {
+                if (!await context.Employees.AnyAsync(e => e.EmployeeCode == emp.EmployeeCode))
+                {
+                    context.Employees.Add(emp);
+                    count++;
+                }
+            }
+            await context.SaveChangesAsync();
+            return count;
+        }
+
+        public async Task<bool> SubmitApplicationAsync(LoanApplication app)
+        {
+            using var context = await _factory.CreateDbContextAsync();
+            if (app.LoanAmountRequested <= 0) return false;
+
+            if (app.Employee != null && app.Employee.EmployeeID > 0)
+            {
+                context.Entry(app.Employee).State = EntityState.Unchanged;
+            }
+
+            app.ApplicationStatus = "Pending Approval";
+            context.LoanApplications.Add(app);
+            await context.SaveChangesAsync();
+            return true;
+        }
+
+        public async Task<List<LoanApplication>> GetPendingApplicationsAsync()
+        {
+            using var context = await _factory.CreateDbContextAsync();
+            return await context.LoanApplications
+                .Include(a => a.Employee)
+                .Where(a => a.ApplicationStatus != "Rejected" && a.ApplicationStatus != "Active")
+                .AsNoTracking()
+                .ToListAsync();
+        }
+
+        // --- CORE WORKFLOW LOGIC ---
+
+        // STEP 1: HR Sanctions -> Sends Email -> Status: Pending Agreement
+        public async Task ApproveLoanAsync(LoanApproval approval)
+        {
+            using var context = await _factory.CreateDbContextAsync();
+            using var transaction = await context.Database.BeginTransactionAsync();
+            try
+            {
+                // 1. Save Approval Record (Includes AdminComments)
+                context.LoanApprovals.Add(approval);
+
+                // 2. Update Application Status
+                var application = await context.LoanApplications
+                    .Include(a => a.Employee)
+                    .FirstOrDefaultAsync(a => a.ApplicationID == approval.ApplicationID);
+
+                if (application != null)
+                {
+                    application.ApplicationStatus = "Pending Agreement";
+
+                    // 3. Trigger Email (Fire and Forget)
+                    if (application.Employee != null)
+                    {
+                        _ = _emailService.SendAgreementMailAsync(application.Employee, application, approval);
+                    }
+                }
+
+                await context.SaveChangesAsync();
+                await transaction.CommitAsync();
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
+        }
+
+        // STEP 2: Zoho Webhook/Callback hits this (Simulated via Button for now)
+        public async Task ConfirmAgreementSignedAsync(int applicationId)
+        {
+            using var context = await _factory.CreateDbContextAsync();
+            var app = await context.LoanApplications.FindAsync(applicationId);
+            if (app != null)
+            {
+                app.ApplicationStatus = "Pending Payment";
+                await context.SaveChangesAsync();
+            }
+        }
+
+        // STEP 3: Finance Disburses Money
+        public async Task DisburseLoanAsync(int applicationId)
+        {
+            using var context = await _factory.CreateDbContextAsync();
+            var app = await context.LoanApplications.FindAsync(applicationId);
+            if (app != null)
+            {
+                app.ApplicationStatus = "Active";
+                await context.SaveChangesAsync();
+            }
+        }
+    }
+}

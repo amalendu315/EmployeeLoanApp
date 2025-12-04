@@ -1,0 +1,649 @@
+﻿@page "/employees"
+@using EmployeeLoanApp.Services
+@using EmployeeLoanApp.Models
+@using System.IO
+@inject LoanService LoanService
+@inject ISnackbar Snackbar
+@inject IWebHostEnvironment Env
+
+<PageTitle>Employees | Kalyana Impex</PageTitle>
+
+<style>
+    /* --- CRM UI POLISH --- */
+    .crm-card {
+        background: white;
+        border-radius: 12px;
+        border: 1px solid #E2E8F0;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        overflow: hidden;
+    }
+
+    /* WIZARD STEPPER STYLES */
+    .wizard-header {
+        display: flex;
+        justify-content: space-between;
+        padding: 20px 40px;
+        background: #F8FAFC;
+        border-bottom: 1px solid #E2E8F0;
+    }
+
+    .step-indicator {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        color: #94A3B8;
+        font-weight: 600;
+        font-size: 0.9rem;
+    }
+
+        .step-indicator.active {
+            color: var(--mud-palette-primary);
+        }
+
+    .step-circle {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: #E2E8F0;
+        color: #64748B;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+    }
+
+    .step-indicator.active .step-circle {
+        background: var(--mud-palette-primary);
+        color: white;
+        box-shadow: 0 0 0 4px var(--mud-palette-primary-hover);
+    }
+
+    .step-line {
+        flex-grow: 1;
+        height: 2px;
+        background: #E2E8F0;
+        margin: 0 16px;
+    }
+
+    .wizard-body {
+        padding: 40px;
+        min-height: 500px;
+    }
+
+    .wizard-footer {
+        padding: 20px 40px;
+        border-top: 1px solid #E2E8F0;
+        background: #F8FAFC;
+        display: flex;
+        justify-content: space-between;
+    }
+
+    /* Upload Zone */
+    .upload-zone-small {
+        border: 2px dashed #CBD5E1;
+        border-radius: 8px;
+        padding: 24px;
+        text-align: center;
+        background: white;
+        transition: all 0.2s;
+        position: relative;
+        cursor: pointer;
+    }
+
+        .upload-zone-small:hover {
+            border-color: var(--mud-palette-primary);
+            background: #F0F9FF;
+        }
+
+    .crm-upload-box {
+        border: 2px dashed #E0E0E0;
+        background-color: #FAFAFA;
+        border-radius: 16px;
+        padding: 40px 20px;
+        text-align: center;
+        position: relative;
+        transition: all 0.3s ease;
+        cursor: pointer;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        min-height: 300px;
+    }
+
+        .crm-upload-box:hover {
+            background-color: #F0F7FF;
+            border-color: var(--mud-palette-primary);
+            transform: translateY(-2px);
+        }
+
+    .native-input {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        top: 0;
+        left: 0;
+        opacity: 0;
+        cursor: pointer;
+    }
+
+    /* --- PROFILE SLIDER STYLES --- */
+    .profile-slider-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(15, 23, 42, 0.6);
+        z-index: 9999;
+        backdrop-filter: blur(2px);
+        display: flex;
+        justify-content: flex-end;
+        opacity: 0;
+        animation: fadeIn 0.3s forwards;
+    }
+
+    .profile-slider-panel {
+        background: #F8FAFC;
+        width: 900px;
+        max-width: 90vw;
+        height: 100%;
+        box-shadow: -10px 0 25px rgba(0,0,0,0.15);
+        transform: translateX(100%);
+        animation: slideInRight 0.3s forwards;
+        display: flex;
+        flex-direction: column;
+        overflow-y: auto;
+    }
+
+    @@keyframes fadeIn {
+        to {
+            opacity: 1;
+        }
+    }
+
+    @@keyframes slideInRight {
+        to {
+            transform: translateX(0);
+        }
+    }
+
+    .profile-header-bg {
+        background: linear-gradient(135deg, #6EC1E4 0%, #4054B2 100%);
+        padding: 40px 32px;
+        color: white;
+    }
+
+    .stat-card {
+        background: white;
+        padding: 20px;
+        border-radius: 12px;
+        border: 1px solid #E2E8F0;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        height: 100%;
+    }
+
+    .info-label {
+        color: #64748B;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+    }
+
+    .info-value {
+        color: #0F172A;
+        font-weight: 500;
+        font-size: 0.95rem;
+        margin-top: 2px;
+    }
+</style>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-8 mb-16">
+    <!-- Header -->
+    <div class="d-flex justify-space-between align-center mb-6">
+        <div>
+            <MudText Typo="Typo.h4" Style="font-weight:700; color:#0F172A;">Team Directory</MudText>
+            <MudText Typo="Typo.body1" Color="Color.Secondary">Manage your workforce, onboarding, and records.</MudText>
+        </div>
+    </div>
+
+    <!-- MAIN TABS -->
+    <MudTabs @bind-ActivePanelIndex="_activeTab" Elevation="0" Rounded="true" ApplyEffectsToContainer="true" PanelClass="mt-6" Color="Color.Primary" SliderColor="Color.Primary">
+
+        <!-- TAB 1: EMPLOYEES LIST -->
+        <MudTabPanel Text="All Employees" Icon="@Icons.Material.Filled.People">
+            <MudPaper Elevation="0" Class="crm-card">
+                <MudTable Items="@_employees" Hover="true" Striped="true" Filter="new Func<Employee, bool>(FilterFunc1)" Elevation="0">
+                    <ToolBarContent>
+                        <MudText Typo="Typo.h6" Class="ml-2"><b>@_employees.Count</b> Active Records</MudText>
+                        <MudSpacer />
+                        <MudTextField @bind-Value="searchString1" Placeholder="Search by Name, ID..." Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Class="mt-0" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </ToolBarContent>
+                    <HeaderContent>
+                        <MudTh>Identity</MudTh>
+                        <MudTh>Role</MudTh>
+                        <MudTh>Contact</MudTh>
+                        <MudTh>Status</MudTh>
+                        <MudTh Style="text-align:right">Actions</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd>
+                            <div class="d-flex align-center">
+                                <MudAvatar Color="Color.Primary" Variant="Variant.Filled" Size="Size.Medium" Class="mr-3 rounded-lg">@context.FullName.Substring(0, 1)</MudAvatar>
+                                <div>
+                                    <MudText Typo="Typo.subtitle2"><b>@context.FullName</b></MudText>
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">@context.EmployeeCode</MudText>
+                                </div>
+                            </div>
+                        </MudTd>
+                        <MudTd>
+                            <MudText Typo="Typo.body2">@context.Designation</MudText>
+                            <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Text" Class="mt-1">@context.Department</MudChip>
+                        </MudTd>
+                        <MudTd>
+                            <MudText Typo="Typo.caption" Class="d-block"><MudIcon Icon="@Icons.Material.Filled.Email" Size="Size.Small" Class="mr-1" /> @context.Email</MudText>
+                            <MudText Typo="Typo.caption" Class="d-block"><MudIcon Icon="@Icons.Material.Filled.Phone" Size="Size.Small" Class="mr-1" /> @context.PhoneNumber</MudText>
+                        </MudTd>
+                        <MudTd>
+                            @if (context.OpeningLoanBalance > 0)
+                            {
+                                <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Filled">Loan Active</MudChip>
+                            }
+                            else
+                            {
+
+                                <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Text">Clear</MudChip>
+                            }
+                        </MudTd>
+                        <MudTd Style="text-align:right">
+                            <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" OnClick="@(() => ViewProfile(context.EmployeeID))">Profile</MudButton>
+                        </MudTd>
+                    </RowTemplate>
+                    <PagerContent><MudTablePager /></PagerContent>
+                </MudTable>
+            </MudPaper>
+        </MudTabPanel>
+
+        <!-- TAB 2: ADD NEW (HORIZONTAL WIZARD) -->
+        <MudTabPanel Text="New Entry" Icon="@Icons.Material.Filled.PersonAdd">
+            <MudGrid Justify="Justify.Center">
+                <MudItem xs="12" lg="10">
+                    <MudCard Elevation="0" Class="crm-card">
+
+                        <!-- WIZARD HEADER -->
+                        <div class="wizard-header">
+                            <div class="step-indicator @(_wizardStep >= 1 ? "active" : "")">
+                                <div class="step-circle">1</div> <span>Identity</span>
+                            </div>
+                            <div class="step-line"></div>
+                            <div class="step-indicator @(_wizardStep >= 2 ? "active" : "")">
+                                <div class="step-circle">2</div> <span>Banking</span>
+                            </div>
+                            <div class="step-line"></div>
+                            <div class="step-indicator @(_wizardStep >= 3 ? "active" : "")">
+                                <div class="step-circle">3</div> <span>KYC Docs</span>
+                            </div>
+                            <div class="step-line"></div>
+                            <div class="step-indicator @(_wizardStep >= 4 ? "active" : "")">
+                                <div class="step-circle">4</div> <span>Review</span>
+                            </div>
+                        </div>
+
+                        <!-- WIZARD BODY -->
+                        <div class="wizard-body">
+                            <MudForm @ref="form" @bind-IsValid="@success">
+
+                                <!-- STEP 1: IDENTITY -->
+                                @if (_wizardStep == 1)
+                                {
+                                    <MudText Typo="Typo.h5" Class="mb-2"><b>Identity & Role</b></MudText>
+                                    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-6">Basic employee information.</MudText>
+
+                                    <MudGrid Spacing="3">
+                                        <MudItem xs="12" md="3">
+                                            <div class="d-flex justify-center align-center pa-4" style="background:#F1F5F9; border-radius:8px; height:100%; border:1px dashed #94A3B8;">
+                                                <div class="text-center">
+                                                    <MudIcon Icon="@Icons.Material.Filled.AddAPhoto" Size="Size.Large" Color="Color.Default" />
+                                                    <MudText Typo="Typo.caption" Class="d-block mt-2">Photo (Opt)</MudText>
+                                                </div>
+                                            </div>
+                                        </MudItem>
+                                        <MudItem xs="12" md="9">
+                                            <MudGrid>
+                                                <MudItem xs="6"><MudTextField @bind-Value="newEmployee.EmployeeCode" Label="Employee ID" Variant="Variant.Outlined" Required="true" /></MudItem>
+                                                <MudItem xs="6"><MudTextField @bind-Value="newEmployee.FullName" Label="Full Name" Variant="Variant.Outlined" Required="true" /></MudItem>
+                                                <MudItem xs="6"><MudTextField @bind-Value="newEmployee.Department" Label="Department" Variant="Variant.Outlined" Required="true" /></MudItem>
+                                                <MudItem xs="6"><MudTextField @bind-Value="newEmployee.Designation" Label="Designation" Variant="Variant.Outlined" /></MudItem>
+                                                <MudItem xs="6"><MudTextField @bind-Value="newEmployee.Company" Label="Company" Variant="Variant.Outlined" /></MudItem>
+                                                <MudItem xs="6"><MudDatePicker @bind-Date="newEmployee.DateOfJoining" Label="Date of Joining" Variant="Variant.Outlined" Editable="true" /></MudItem>
+                                            </MudGrid>
+                                        </MudItem>
+                                    </MudGrid>
+                                }
+
+                                <!-- STEP 2: BANKING -->
+                                @if (_wizardStep == 2)
+                                {
+                                    <MudText Typo="Typo.h5" Class="mb-2"><b>Banking Details</b></MudText>
+                                    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-6">For salary and loan disbursements.</MudText>
+                                    <MudGrid Spacing="3">
+                                        <MudItem xs="12" md="6"><MudTextField @bind-Value="newEmployee.BankName" Label="Bank Name" Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.AccountBalance" /></MudItem>
+                                        <MudItem xs="12" md="6"><MudTextField @bind-Value="newEmployee.BankBranch" Label="Branch Name" Variant="Variant.Outlined" /></MudItem>
+                                        <MudItem xs="12" md="6"><MudTextField @bind-Value="newEmployee.BankAccountNumber" Label="Account Number" Variant="Variant.Outlined" /></MudItem>
+                                        <MudItem xs="12" md="6"><MudTextField @bind-Value="newEmployee.BankIFSC" Label="IFSC Code" Variant="Variant.Outlined" /></MudItem>
+                                        <MudItem xs="12"><MudTextField @bind-Value="newEmployee.BankAccountHolderName" Label="Account Holder Name" Variant="Variant.Outlined" /></MudItem>
+                                    </MudGrid>
+                                }
+
+                                <!-- STEP 3: KYC -->
+                                @if (_wizardStep == 3)
+                                {
+                                    <MudText Typo="Typo.h5" Class="mb-2"><b>KYC Documents</b></MudText>
+                                    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-6">Upload required proofs.</MudText>
+                                    <MudGrid Spacing="4">
+                                        <MudItem xs="12" md="6">
+                                            <MudCard Outlined="true" Class="pa-4">
+                                                <MudTextField @bind-Value="newEmployee.PANNumber" Label="PAN Number" Variant="Variant.Text" Required="true" />
+                                                <MudDivider Class="my-3" />
+                                                <div class="upload-zone-small">
+                                                    <InputFile OnChange="@(e => UploadDoc(e, "PAN"))" class="native-input" />
+                                                    <MudIcon Icon="@(panFileName == null ? Icons.Material.Filled.CloudUpload : Icons.Material.Filled.CheckCircle)" Color="@(panFileName == null ? Color.Default : Color.Success)" Size="Size.Large" />
+                                                    <MudText Typo="Typo.caption" Class="d-block mt-1">@(panFileName ?? "Upload PAN Scan")</MudText>
+                                                </div>
+                                            </MudCard>
+                                        </MudItem>
+                                        <MudItem xs="12" md="6">
+                                            <MudCard Outlined="true" Class="pa-4">
+                                                <MudTextField @bind-Value="newEmployee.AadhaarNumber" Label="Aadhaar Number" Variant="Variant.Text" Required="true" />
+                                                <MudDivider Class="my-3" />
+                                                <div class="upload-zone-small">
+                                                    <InputFile OnChange="@(e => UploadDoc(e, "AADHAAR"))" class="native-input" />
+                                                    <MudIcon Icon="@(aadhaarFileName == null ? Icons.Material.Filled.CloudUpload : Icons.Material.Filled.CheckCircle)" Color="@(aadhaarFileName == null ? Color.Default : Color.Success)" Size="Size.Large" />
+                                                    <MudText Typo="Typo.caption" Class="d-block mt-1">@(aadhaarFileName ?? "Upload Aadhaar Scan")</MudText>
+                                                </div>
+                                            </MudCard>
+                                        </MudItem>
+                                    </MudGrid>
+                                }
+
+                                <!-- STEP 4: REVIEW -->
+                                @if (_wizardStep == 4)
+                                {
+                                    <MudText Typo="Typo.h5" Class="mb-2"><b>Final Details</b></MudText>
+                                    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-6">Contact info and history.</MudText>
+                                    <MudGrid Spacing="3">
+                                        <MudItem xs="12" md="6"><MudTextField @bind-Value="newEmployee.Email" Label="Email" Variant="Variant.Outlined" /></MudItem>
+                                        <MudItem xs="12" md="6"><MudTextField @bind-Value="newEmployee.PhoneNumber" Label="Phone" Variant="Variant.Outlined" /></MudItem>
+                                        <MudItem xs="12"><MudTextField @bind-Value="newEmployee.ResidentialAddress" Label="Address" Variant="Variant.Outlined" Lines="2" /></MudItem>
+                                        <MudItem xs="12" md="6"><MudTextField @bind-Value="newEmployee.ReportingManagerName" Label="Reporting Manager" Variant="Variant.Outlined" /></MudItem>
+                                        <MudItem xs="12" md="6"><MudNumericField @bind-Value="newEmployee.OpeningLoanBalance" Label="Opening Balance" Variant="Variant.Outlined" /></MudItem>
+                                        <MudItem xs="12"><MudCheckBox @bind-Value="newEmployee.IsNocClear" Label="NOC Issued for Previous Loans?" Color="Color.Success" /></MudItem>
+                                    </MudGrid>
+                                }
+                            </MudForm>
+                        </div>
+
+                        <!-- WIZARD FOOTER -->
+                        <div class="wizard-footer">
+                            @if (_wizardStep > 1)
+                            {
+                                <MudButton Variant="Variant.Outlined" OnClick="@(() => _wizardStep--)">Back</MudButton>
+                            }
+                            else
+                            {
+
+                                <MudButton Variant="Variant.Text" OnClick="@(() => { newEmployee = new(); _wizardStep = 1; })">Cancel</MudButton>
+                            }
+
+                            @if (_wizardStep < 4)
+                            {
+                                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@(() => _wizardStep++)">Next Step</MudButton>
+                            }
+                            else
+                            {
+
+                                <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="SaveEmployee">Create Employee</MudButton>
+                            }
+                        </div>
+                    </MudCard>
+                </MudItem>
+            </MudGrid>
+        </MudTabPanel>
+
+        <!-- TAB 3: BULK IMPORT -->
+        <MudTabPanel Text="Bulk Import" Icon="@Icons.Material.Filled.CloudUpload">
+            <MudGrid Class="mt-2">
+                <MudItem xs="12" md="5">
+                    <MudCard Elevation="0" Class="crm-card pa-6 h-100">
+                        <MudText Typo="Typo.h6" Class="mb-4"><b>Import Guide</b></MudText>
+                        <MudTimeline TimelinePosition="TimelinePosition.Start" Class="pa-0">
+                            <MudTimelineItem Color="Color.Info" Size="Size.Small"><ItemContent><MudText Typo="Typo.subtitle2">1. Prepare CSV</MudText></ItemContent></MudTimelineItem>
+                            <MudTimelineItem Color="Color.Success" Size="Size.Small"><ItemContent><MudText Typo="Typo.subtitle2">2. Match Headers</MudText></ItemContent></MudTimelineItem>
+                            <MudTimelineItem Color="Color.Warning" Size="Size.Small"><ItemContent><MudText Typo="Typo.subtitle2">3. Upload</MudText></ItemContent></MudTimelineItem>
+                        </MudTimeline>
+                    </MudCard>
+                </MudItem>
+                <MudItem xs="12" md="7">
+                    <div class="crm-upload-box">
+                        <InputFile OnChange="UploadData" class="native-input" accept=".csv" />
+                        @if (_importing)
+                        {
+                            <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+                            <MudText Class="mt-2">Processing...</MudText>
+ }
+                        else
+                        {
+                            <MudIcon Icon="@Icons.Material.Filled.CloudUpload" Size="Size.Large" Color="Color.Primary" />
+                            <MudText Typo="Typo.h6" Class="mt-2">Click to Upload CSV</MudText>
+ }
+                    </div>
+                    @if (_importedCount > 0)
+                    {
+                        <MudAlert Severity="Severity.Success" Class="mt-4">Imported @_importedCount records!</MudAlert>
+                    }
+                </MudItem>
+            </MudGrid>
+        </MudTabPanel>
+    </MudTabs>
+</MudContainer>
+
+<!-- PROFILE SLIDER (RESTORED FULL CODE) -->
+@if (_showProfile)
+{
+    <div class="profile-slider-overlay" @onclick="CloseProfile">
+        <div class="profile-slider-panel" @onclick:stopPropagation>
+            <!-- 1. Header Banner -->
+            <div class="profile-header-bg">
+                <div class="d-flex justify-space-between align-start">
+                    <div class="d-flex align-center gap-4">
+                        <MudAvatar Style="height:80px; width:80px; font-size:32px; background:white; color:#4054B2;">@_selectedEmployee.FullName.Substring(0, 1)</MudAvatar>
+                        <div>
+                            <MudText Typo="Typo.h4" Style="font-weight:700;">@_selectedEmployee.FullName</MudText>
+                            <MudText Typo="Typo.body1" Style="opacity:0.9;">@_selectedEmployee.Designation • @_selectedEmployee.Department</MudText>
+                            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Class="mt-2" style="color:white; border-color:white;">@_selectedEmployee.EmployeeCode</MudChip>
+                        </div>
+                    </div>
+                    <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Surface" OnClick="CloseProfile" Size="Size.Large" />
+                </div>
+            </div>
+
+            <!-- 2. Dashboard Content -->
+            <div class="pa-8">
+                <MudGrid>
+                    <MudItem xs="12" sm="4">
+                        <div class="stat-card">
+                            <MudText Class="info-label">Historical Balance</MudText>
+                            <MudText Typo="Typo.h5" Color="@(_selectedEmployee.OpeningLoanBalance > 0 ? Color.Error : Color.Success)">₹@_selectedEmployee.OpeningLoanBalance.ToString("N0")</MudText>
+                        </div>
+                    </MudItem>
+                    <MudItem xs="12" sm="4">
+                        <div class="stat-card">
+                            <MudText Class="info-label">Active Application</MudText>
+                            <MudText Typo="Typo.h5" Color="Color.Success">None</MudText>
+                        </div>
+                    </MudItem>
+                    <MudItem xs="12" sm="4">
+                        <div class="stat-card">
+                            <MudText Class="info-label">NOC Status</MudText>
+                            <MudText Typo="Typo.h6">@(_selectedEmployee.IsNocClear ? "Cleared" : "Not Issued")</MudText>
+                        </div>
+                    </MudItem>
+
+                    <!-- Details -->
+                    <MudItem xs="12" md="4">
+                        <MudCard Elevation="0" Outlined="true" Class="rounded-lg h-100">
+                            <MudCardContent>
+                                <MudText Typo="Typo.subtitle2" Color="Color.Primary" Class="mb-3"><b>CONTACT INFO</b></MudText>
+                                <div class="mb-3"><MudText Class="info-label">Email</MudText><MudText Class="info-value">@_selectedEmployee.Email</MudText></div>
+                                <div class="mb-3"><MudText Class="info-label">Phone</MudText><MudText Class="info-value">@_selectedEmployee.PhoneNumber</MudText></div>
+                                <div><MudText Class="info-label">Address</MudText><MudText Class="info-value">@_selectedEmployee.ResidentialAddress</MudText></div>
+                            </MudCardContent>
+                        </MudCard>
+                    </MudItem>
+
+                    <MudItem xs="12" md="8">
+                        <MudCard Elevation="0" Outlined="true" Class="h-100 rounded-lg">
+                            <MudCardHeader><CardHeaderContent><MudText Typo="Typo.h6">Loan History</MudText></CardHeaderContent></MudCardHeader>
+                            <MudCardContent Class="pa-0">
+                                @if (_employeeLoans != null && _employeeLoans.Any())
+                                {
+                                    <MudTable Items="_employeeLoans" Elevation="0" Dense="true" Hover="true">
+                                        <HeaderContent>
+                                            <MudTh>Date</MudTh><MudTh>Amount</MudTh><MudTh>Purpose</MudTh><MudTh>Status</MudTh>
+                                        </HeaderContent>
+                                        <RowTemplate Context="loan">
+                                            <MudTd>@loan.SubmissionDate.ToShortDateString()</MudTd>
+                                            <MudTd>₹@loan.LoanAmountRequested.ToString("N0")</MudTd>
+                                            <MudTd>@loan.PurposeOfLoan</MudTd>
+                                            <MudTd><MudChip T="string" Color="Color.Info" Size="Size.Small">@loan.ApplicationStatus</MudChip></MudTd>
+                                        </RowTemplate>
+                                    </MudTable>
+                                }
+                                else
+                                {
+                                    <div class="d-flex flex-column align-center pa-8"><MudText Color="Color.Secondary">No loan history found.</MudText></div>
+                                }
+                            </MudCardContent>
+                        </MudCard>
+                    </MudItem>
+                </MudGrid>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    MudForm form = default!;
+    bool success;
+    bool _importing = false;
+    int _activeTab = 0;
+    int _wizardStep = 1;
+
+    List<Employee> _employees = new();
+    Employee newEmployee = new();
+    Employee _selectedEmployee = new();
+    List<LoanApplication> _employeeLoans = new();
+
+    string searchString1 = "";
+    int _importedCount = 0;
+    string? panFileName;
+    string? aadhaarFileName;
+    bool _showProfile = false;
+
+    protected override async Task OnInitializedAsync() => await LoadEmployees();
+    private async Task LoadEmployees() => _employees = await LoanService.GetAllEmployeesAsync();
+
+    private bool FilterFunc1(Employee element) => FilterFunc(element, searchString1);
+    private bool FilterFunc(Employee element, string searchString)
+    {
+        if (string.IsNullOrWhiteSpace(searchString)) return true;
+        if (element.FullName.Contains(searchString, StringComparison.OrdinalIgnoreCase)) return true;
+        return false;
+    }
+
+    private async Task ViewProfile(int id)
+    {
+        _selectedEmployee = await LoanService.GetEmployeeWithLoansAsync(id) ?? new Employee();
+        _employeeLoans = await LoanService.GetLoansByEmployeeIdAsync(id);
+        _showProfile = true;
+    }
+    private void CloseProfile() => _showProfile = false;
+
+    private async Task UploadDoc(InputFileChangeEventArgs e, string type)
+    {
+        var file = e.File;
+        if (type == "PAN") panFileName = file.Name;
+        else aadhaarFileName = file.Name;
+        Snackbar.Add($"{type} Uploaded!", Severity.Success);
+    }
+
+    private async Task SaveEmployee()
+    {
+        await form.Validate();
+        if (form.IsValid)
+        {
+            if (await LoanService.CreateEmployeeAsync(newEmployee))
+            {
+                Snackbar.Add("Employee Created!", Severity.Success);
+                newEmployee = new();
+                panFileName = null; aadhaarFileName = null;
+                _wizardStep = 1;
+                await LoadEmployees();
+                _activeTab = 0;
+            }
+            else { Snackbar.Add("ID exists.", Severity.Error); }
+        }
+    }
+
+    private async Task UploadData(InputFileChangeEventArgs e)
+    {
+        _importing = true;
+        _importedCount = 0;
+        try
+        {
+            await Task.Delay(800);
+            var employees = new List<Employee>();
+            using var stream = e.File.OpenReadStream(5000000);
+            using var reader = new StreamReader(stream);
+            string? line; bool isHeader = true;
+            while ((line = await reader.ReadLineAsync()) != null)
+            {
+                if (string.IsNullOrWhiteSpace(line)) continue;
+                if (isHeader) { isHeader = false; continue; }
+                var values = line.Split(',');
+                if (values.Length >= 2)
+                {
+                    employees.Add(new Employee
+                    {
+                        EmployeeCode = GetVal(values, 0),
+                        FullName = GetVal(values, 1),
+                        Company = GetVal(values, 2),
+                        Department = GetVal(values, 3),
+                        Designation = GetVal(values, 4),
+                        DateOfJoining = DateTime.TryParse(GetVal(values, 5), out DateTime doj) ? doj : null,
+                        PhoneNumber = GetVal(values, 6),
+                        Email = GetVal(values, 7),
+                        PANNumber = GetVal(values, 8),
+                        AadhaarNumber = GetVal(values, 9),
+                        ResidentialAddress = GetVal(values, 10),
+                        ReportingManagerName = GetVal(values, 11),
+                        ReportingManagerID = GetVal(values, 12),
+                        OpeningLoanBalance = decimal.TryParse(GetVal(values, 13), out decimal ob) ? ob : 0,
+                        IsNocClear = bool.TryParse(GetVal(values, 14), out bool noc) ? noc : true
+                    });
+                }
+            }
+            if (employees.Count > 0)
+            {
+                _importedCount = await LoanService.ImportEmployeesAsync(employees);
+                Snackbar.Add($"Imported {_importedCount} records!", Severity.Success);
+                await LoadEmployees();
+            }
+        }
+        catch (Exception ex) { Snackbar.Add($"Error: {ex.Message}", Severity.Error); }
+        finally { _importing = false; }
+    }
+    private string GetVal(string[] values, int index) => index < values.Length ? values[index].Trim() : string.Empty;
+}

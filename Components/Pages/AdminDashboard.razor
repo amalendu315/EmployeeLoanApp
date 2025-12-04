@@ -1,0 +1,271 @@
+﻿@page "/"
+@using EmployeeLoanApp.Services
+@using EmployeeLoanApp.Models
+@using System.IO
+@inject LoanService LoanService
+@inject IWebHostEnvironment Env
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@rendermode InteractiveServer
+
+<PageTitle>Dashboard | Kalyana Impex Pvt. Ltd.</PageTitle>
+
+<style>
+    /* KPI Card Styling */
+    .kpi-card {
+        background: white;
+        border-radius: 12px;
+        padding: 24px;
+        border: 1px solid #E2E8F0;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        transition: transform 0.2s;
+        height: 100%;
+    }
+
+        .kpi-card:hover {
+            transform: translateY(-2px);
+            border-color: var(--mud-palette-primary-lighten);
+        }
+
+    .kpi-icon {
+        background: #F1F5F9;
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #64748B;
+        margin-bottom: 16px;
+    }
+
+    .kpi-value {
+        font-size: 2rem;
+        font-weight: 800;
+        color: #0F172A;
+        line-height: 1;
+    }
+
+    .kpi-label {
+        color: #64748B;
+        font-size: 0.875rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    /* Table Styling */
+    .dashboard-table-container {
+        background: white;
+        border-radius: 16px;
+        border: 1px solid #E2E8F0;
+        overflow: hidden;
+    }
+
+    .status-badge {
+        padding: 4px 12px;
+        border-radius: 99px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+    }
+</style>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-8 mb-16">
+
+    <!-- 1. HEADER SECTION -->
+    <div class="d-flex justify-space-between align-center mb-8">
+        <div>
+            <MudText Typo="Typo.h4" Style="font-weight:700; color:#0F172A;">Overview</MudText>
+            <MudText Typo="Typo.body1" Color="Color.Secondary">Welcome back, HR Manager.</MudText>
+        </div>
+        <div class="d-flex gap-3">
+            <MudButton Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.Refresh" OnClick="LoadData">Refresh</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Link="/employees" StartIcon="@Icons.Material.Filled.PersonAdd" Class="px-6 rounded-lg" Href="/employees">Add Employee</MudButton>
+        </div>
+    </div>
+
+    @if (pendingApps == null)
+    {
+        <div class="d-flex justify-center align-center" style="height: 400px;">
+            <MudProgressCircular Color="Color.Primary" Size="Size.Large" Indeterminate="true" />
+        </div>
+    }
+    else
+    {
+        <!-- 2. KPI METRICS ROW -->
+        <MudGrid Class="mb-8">
+            <MudItem xs="12" sm="6" md="3">
+                <div class="kpi-card">
+                    <div class="kpi-icon" style="background:#EFF6FF; color:#3B82F6;">
+                        <MudIcon Icon="@Icons.Material.Filled.PendingActions" Size="Size.Medium" />
+                    </div>
+                    <div class="kpi-value">@pendingApps.Count(x => x.ApplicationStatus == "Pending Approval")</div>
+                    <div class="kpi-label">Pending Approval</div>
+                </div>
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <div class="kpi-card">
+                    <div class="kpi-icon" style="background:#FFF7ED; color:#F97316;">
+                        <MudIcon Icon="@Icons.Material.Filled.AssignmentInd" Size="Size.Medium" />
+                    </div>
+                    <div class="kpi-value">@pendingApps.Count(x => x.ApplicationStatus == "Pending Agreement")</div>
+                    <div class="kpi-label">Waiting for Sign</div>
+                </div>
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <div class="kpi-card">
+                    <div class="kpi-icon" style="background:#F0FDF4; color:#22C55E;">
+                        <MudIcon Icon="@Icons.Material.Filled.Payment" Size="Size.Medium" />
+                    </div>
+                    <div class="kpi-value">@pendingApps.Count(x => x.ApplicationStatus == "Pending Payment")</div>
+                    <div class="kpi-label">Ready to Disburse</div>
+                </div>
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <div class="kpi-card">
+                    <div class="kpi-icon" style="background:#F8FAFC; color:#64748B;">
+                        <MudIcon Icon="@Icons.Material.Filled.AttachMoney" Size="Size.Medium" />
+                    </div>
+                    <div class="kpi-value">₹@pendingApps.Sum(x => x.LoanAmountRequested).ToString("N0")</div>
+                    <div class="kpi-label">Total Pipeline</div>
+                </div>
+            </MudItem>
+        </MudGrid>
+
+        <!-- 3. MAIN ACTION TABLE -->
+        <MudText Typo="Typo.h5" Class="mb-4" Style="font-weight:700;">Active Applications</MudText>
+
+        <div class="dashboard-table-container shadow-sm">
+            @if (pendingApps.Count == 0)
+            {
+                <div class="d-flex flex-column align-center justify-center py-16">
+                    <div style="background:#F0FDF4; padding:24px; border-radius:50%; margin-bottom:16px;">
+                        <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Style="font-size: 64px; color: #22C55E;" />
+                    </div>
+                    <MudText Typo="Typo.h5" Align="Align.Center"><b>All Caught Up!</b></MudText>
+                    <MudText Typo="Typo.body1" Color="Color.Secondary" Align="Align.Center">There are no pending loan applications right now.</MudText>
+                </div>
+            }
+            else
+            {
+                <MudTable Items="@pendingApps" Hover="true" Striped="true" Elevation="0">
+                    <HeaderContent>
+                        <MudTh>Applicant</MudTh>
+                        <MudTh>Reference</MudTh>
+                        <MudTh>Amount</MudTh>
+                        <MudTh>Date</MudTh>
+                        <MudTh>Status</MudTh>
+                        <MudTh Style="text-align:right">Action</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd>
+                            <div class="d-flex align-center">
+                                <MudAvatar Color="Color.Primary" Variant="Variant.Filled" Size="Size.Medium" Class="mr-3 rounded-lg">@context.Employee?.FullName?.Substring(0, 1)</MudAvatar>
+                                <div>
+                                    <MudText Typo="Typo.subtitle2"><b>@context.Employee?.FullName</b></MudText>
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">@context.Employee?.Department • @context.Employee?.Designation</MudText>
+                                </div>
+                            </div>
+                        </MudTd>
+                        <MudTd>
+                            <MudText Typo="Typo.body2" Style="font-family:monospace; color:#64748B;">#@context.ApplicationID</MudText>
+                        </MudTd>
+                        <MudTd>
+                            <MudText Typo="Typo.subtitle2"><b>₹@context.LoanAmountRequested.ToString("N0")</b></MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">@context.LoanTenureMonths Months</MudText>
+                        </MudTd>
+                        <MudTd>
+                            <MudText Typo="Typo.body2">@context.SubmissionDate.ToString("MMM dd, yyyy")</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">@((DateTime.Now - context.SubmissionDate).Days) days ago</MudText>
+                        </MudTd>
+                        <MudTd>
+                            @if (context.ApplicationStatus == "Pending Approval")
+                            {
+                                <span class="status-badge" style="background:#FEF3C7; color:#D97706;">Needs Approval</span>
+                            }
+                            else if (context.ApplicationStatus == "Pending Agreement")
+                            {
+                                <span class="status-badge" style="background:#E0F2FE; color:#0284C7;">Agreement Sent</span>
+                            }
+                            else if (context.ApplicationStatus == "Pending Payment")
+                            {
+                                <span class="status-badge" style="background:#DCFCE7; color:#16A34A;">Ready to Pay</span>
+                            }
+                        </MudTd>
+                        <MudTd Style="text-align:right">
+                            @if (context.ApplicationStatus == "Pending Approval")
+                            {
+                                <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" OnClick="@(() => OpenSanctionDialog(context))" Class="rounded-lg px-4">Review & Sanction</MudButton>
+                            }
+                            else if (context.ApplicationStatus == "Pending Payment")
+                            {
+                                <MudButton Variant="Variant.Filled" Color="Color.Success" Size="Size.Small" OnClick="@(() => MarkPaid(context.ApplicationID))" StartIcon="@Icons.Material.Filled.AttachMoney" Class="rounded-lg px-4">Disburse Funds</MudButton>
+                            }
+                            else
+                            {
+                                <MudButton Variant="Variant.Outlined" Disabled="true" Size="Size.Small" Class="rounded-lg px-4">Waiting</MudButton>
+                            }
+                        </MudTd>
+                    </RowTemplate>
+                    <PagerContent>
+                        <MudTablePager />
+                    </PagerContent>
+                </MudTable>
+            }
+        </div>
+    }
+</MudContainer>
+
+@code {
+    private List<LoanApplication>? pendingApps;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        try
+        {
+            // Initial load state
+            if (pendingApps == null) StateHasChanged();
+
+            pendingApps = await LoanService.GetPendingApplicationsAsync();
+            StateHasChanged(); // Force UI Refresh after data load
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading data: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task OpenSanctionDialog(LoanApplication app)
+    {
+        var parameters = new DialogParameters<ApprovalDialog>
+        {
+            { x => x.ApplicationId, app.ApplicationID },
+            { x => x.RequestedAmount, app.LoanAmountRequested },
+            { x => x.ApplicantName, app.Employee?.FullName ?? "Unknown Applicant" }
+        };
+
+        var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
+
+        var dialog = await DialogService.ShowAsync<ApprovalDialog>("Sanction Loan", parameters, options);
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            Snackbar.Add("Loan Sanctioned Successfully", Severity.Success);
+            await LoadData(); // Refresh to update KPIs and Table
+        }
+    }
+
+    private async Task MarkPaid(int appId)
+    {
+        await LoanService.DisburseLoanAsync(appId);
+        await LoadData();
+        Snackbar.Add("Loan Disbursed Successfully!", Severity.Success);
+    }
+}
