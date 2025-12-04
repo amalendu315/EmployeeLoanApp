@@ -15,6 +15,102 @@ namespace EmployeeLoanApp.Services
             _emailService = emailService;
         }
 
+        public async Task<LoanApplication?> GetActiveOrPendingLoanAsync(int employeeId)
+        {
+            using var context = await _factory.CreateDbContextAsync();
+            return await context.LoanApplications
+                .Where(l => l.EmployeeID == employeeId &&
+                           (l.ApplicationStatus == "Pending Approval" ||
+                            l.ApplicationStatus == "Pending Agreement" ||
+                            l.ApplicationStatus == "Pending Payment" ||
+                            l.ApplicationStatus == "Active"))
+                .OrderByDescending(l => l.SubmissionDate)
+                .FirstOrDefaultAsync();
+        }
+
+        public async Task<List<Company>> GetCompaniesAsync()
+        {
+            using var context = await _factory.CreateDbContextAsync();
+            return await context.Companies.Where(x => x.IsActive).ToListAsync();
+        }
+
+        public async Task AddCompanyAsync(string name)
+        {
+            using var context = await _factory.CreateDbContextAsync();
+            if (!await context.Companies.AnyAsync(c => c.CompanyName == name))
+            {
+                context.Companies.Add(new Company { CompanyName = name, IsActive = true });
+                await context.SaveChangesAsync();
+            }
+        }
+
+        public async Task DeleteCompanyAsync(int id)
+        {
+            using var context = await _factory.CreateDbContextAsync();
+            var item = await context.Companies.FindAsync(id);
+            if (item != null)
+            {
+                context.Companies.Remove(item); // Or set IsActive = false
+                await context.SaveChangesAsync();
+            }
+        }
+
+        // --- MASTER DATA: LOAN PURPOSES ---
+        public async Task<List<LoanPurpose>> GetLoanPurposesAsync()
+        {
+            using var context = await _factory.CreateDbContextAsync();
+            return await context.LoanPurposes.Where(x => x.IsActive).ToListAsync();
+        }
+
+        public async Task AddLoanPurposeAsync(string name)
+        {
+            using var context = await _factory.CreateDbContextAsync();
+            if (!await context.LoanPurposes.AnyAsync(p => p.PurposeName == name))
+            {
+                context.LoanPurposes.Add(new LoanPurpose { PurposeName = name, IsActive = true });
+                await context.SaveChangesAsync();
+            }
+        }
+
+        public async Task DeleteLoanPurposeAsync(int id)
+        {
+            using var context = await _factory.CreateDbContextAsync();
+            var item = await context.LoanPurposes.FindAsync(id);
+            if (item != null)
+            {
+                context.LoanPurposes.Remove(item);
+                await context.SaveChangesAsync();
+            }
+        }
+
+        // --- MASTER DATA: APPLICATION TYPES ---
+        public async Task<List<ApplicationType>> GetApplicationTypesAsync()
+        {
+            using var context = await _factory.CreateDbContextAsync();
+            return await context.ApplicationTypes.Where(x => x.IsActive).ToListAsync();
+        }
+
+        public async Task AddApplicationTypeAsync(string name)
+        {
+            using var context = await _factory.CreateDbContextAsync();
+            if (!await context.ApplicationTypes.AnyAsync(t => t.TypeName == name))
+            {
+                context.ApplicationTypes.Add(new ApplicationType { TypeName = name, IsActive = true });
+                await context.SaveChangesAsync();
+            }
+        }
+
+        public async Task DeleteApplicationTypeAsync(int id)
+        {
+            using var context = await _factory.CreateDbContextAsync();
+            var item = await context.ApplicationTypes.FindAsync(id);
+            if (item != null)
+            {
+                context.ApplicationTypes.Remove(item);
+                await context.SaveChangesAsync();
+            }
+        }
+
         public async Task<List<Employee>> GetAllEmployeesAsync()
         {
             using var context = await _factory.CreateDbContextAsync();

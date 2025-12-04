@@ -1,0 +1,159 @@
+﻿@page "/masters"
+@using EmployeeLoanApp.Services
+@using EmployeeLoanApp.Models
+@rendermode InteractiveServer
+@inject LoanService LoanService
+@inject ISnackbar Snackbar
+
+<PageTitle>Master Data | Kalyana Impex</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-8 mb-8">
+    <MudText Typo="Typo.h4" Color="Color.Primary" Class="mb-2"><b>Master Configuration</b></MudText>
+    <MudText Typo="Typo.body1" Color="Color.Secondary" Class="mb-6">Manage dropdown values for the application forms.</MudText>
+
+    <MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pa-6" Color="Color.Primary">
+
+        <!-- TAB 1: COMPANIES -->
+        <MudTabPanel Text="Companies" Icon="@Icons.Material.Filled.Business">
+            <MudGrid>
+                <MudItem xs="12" md="4">
+                    <MudCard Elevation="0" Outlined="true" Class="pa-4">
+                        <MudText Typo="Typo.h6" Class="mb-4">Add New Company</MudText>
+                        <MudTextField @bind-Value="_newCompany" Label="Company Name" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-4" FullWidth="true" OnClick="AddCompany">Add Company</MudButton>
+                    </MudCard>
+                </MudItem>
+                <MudItem xs="12" md="8">
+                    <MudTable Items="@_companies" Hover="true" Striped="true" Elevation="0" Outlined="true">
+                        <HeaderContent>
+                            <MudTh>ID</MudTh>
+                            <MudTh>Company Name</MudTh>
+                            <MudTh>Action</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd>@context.CompanyID</MudTd>
+                            <MudTd><b>@context.CompanyName</b></MudTd>
+                            <MudTd>
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => DeleteCompany(context.CompanyID))" />
+                            </MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                </MudItem>
+            </MudGrid>
+        </MudTabPanel>
+
+        <!-- TAB 2: LOAN PURPOSES -->
+        <MudTabPanel Text="Loan Purposes" Icon="@Icons.Material.Filled.Category">
+            <MudGrid>
+                <MudItem xs="12" md="4">
+                    <MudCard Elevation="0" Outlined="true" Class="pa-4">
+                        <MudText Typo="Typo.h6" Class="mb-4">Add Loan Purpose</MudText>
+                        <MudTextField @bind-Value="_newPurpose" Label="Purpose Name" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-4" FullWidth="true" OnClick="AddPurpose">Add Purpose</MudButton>
+                    </MudCard>
+                </MudItem>
+                <MudItem xs="12" md="8">
+                    <MudTable Items="@_purposes" Hover="true" Striped="true" Elevation="0" Outlined="true">
+                        <HeaderContent>
+                            <MudTh>ID</MudTh>
+                            <MudTh>Purpose Name</MudTh>
+                            <MudTh>Action</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd>@context.PurposeID</MudTd>
+                            <MudTd><b>@context.PurposeName</b></MudTd>
+                            <MudTd>
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => DeletePurpose(context.PurposeID))" />
+                            </MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                </MudItem>
+            </MudGrid>
+        </MudTabPanel>
+
+        <!-- TAB 3: APPLICATION TYPES -->
+        <MudTabPanel Text="Application Types" Icon="@Icons.Material.Filled.SettingsInputComponent">
+            <MudGrid>
+                <MudItem xs="12" md="4">
+                    <MudCard Elevation="0" Outlined="true" Class="pa-4">
+                        <MudText Typo="Typo.h6" Class="mb-4">Add Application Type</MudText>
+                        <MudTextField @bind-Value="_newAppType" Label="Type Name" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-4" FullWidth="true" OnClick="AddAppType">Add Type</MudButton>
+                    </MudCard>
+                </MudItem>
+                <MudItem xs="12" md="8">
+                    <MudTable Items="@_appTypes" Hover="true" Striped="true" Elevation="0" Outlined="true">
+                        <HeaderContent>
+                            <MudTh>ID</MudTh>
+                            <MudTh>Type Name</MudTh>
+                            <MudTh>Action</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd>@context.TypeID</MudTd>
+                            <MudTd><b>@context.TypeName</b></MudTd>
+                            <MudTd>
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => DeleteAppType(context.TypeID))" />
+                            </MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                </MudItem>
+            </MudGrid>
+        </MudTabPanel>
+
+    </MudTabs>
+</MudContainer>
+
+@code {
+    List<Company> _companies = new();
+    List<LoanPurpose> _purposes = new();
+    List<ApplicationType> _appTypes = new();
+
+    string _newCompany = "";
+    string _newPurpose = "";
+    string _newAppType = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        _companies = await LoanService.GetCompaniesAsync();
+        _purposes = await LoanService.GetLoanPurposesAsync();
+        _appTypes = await LoanService.GetApplicationTypesAsync();
+    }
+
+    // Company Actions
+    private async Task AddCompany()
+    {
+        if (string.IsNullOrWhiteSpace(_newCompany)) return;
+        await LoanService.AddCompanyAsync(_newCompany);
+        _newCompany = "";
+        Snackbar.Add("Company Added", Severity.Success);
+        await LoadData();
+    }
+    private async Task DeleteCompany(int id) { await LoanService.DeleteCompanyAsync(id); await LoadData(); }
+
+    // Purpose Actions
+    private async Task AddPurpose()
+    {
+        if (string.IsNullOrWhiteSpace(_newPurpose)) return;
+        await LoanService.AddLoanPurposeAsync(_newPurpose);
+        _newPurpose = "";
+        Snackbar.Add("Purpose Added", Severity.Success);
+        await LoadData();
+    }
+    private async Task DeletePurpose(int id) { await LoanService.DeleteLoanPurposeAsync(id); await LoadData(); }
+
+    // Type Actions
+    private async Task AddAppType()
+    {
+        if (string.IsNullOrWhiteSpace(_newAppType)) return;
+        await LoanService.AddApplicationTypeAsync(_newAppType);
+        _newAppType = "";
+        Snackbar.Add("Type Added", Severity.Success);
+        await LoadData();
+    }
+    private async Task DeleteAppType(int id) { await LoanService.DeleteApplicationTypeAsync(id); await LoadData(); }
+}

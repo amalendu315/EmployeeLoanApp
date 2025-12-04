@@ -3,6 +3,31 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EmployeeLoanApp.Models
 {
+    // --- NEW MASTER MODELS ---
+    public class ApplicationType
+    {
+        [Key]
+        public int TypeID { get; set; }
+        public string TypeName { get; set; } = "";
+        public bool IsActive { get; set; } = true;
+    }
+
+    public class Company
+    {
+        [Key]
+        public int CompanyID { get; set; }
+        public string CompanyName { get; set; } = "";
+        public bool IsActive { get; set; } = true;
+    }
+
+    public class LoanPurpose
+    {
+        [Key]
+        public int PurposeID { get; set; }
+        public string PurposeName { get; set; } = "";
+        public bool IsActive { get; set; } = true;
+    }
+
     public class Employee
     {
         [Key]

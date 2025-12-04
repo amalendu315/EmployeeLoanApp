@@ -5,27 +5,42 @@
 @inject LoanService LoanService
 @inject ISnackbar Snackbar
 @inject NavigationManager Nav
+@inject IDialogService DialogService
 
-<!-- ... (Keep Layout) ... -->
-<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+<PageTitle>Apply for Loan | Kalyana Impex</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4 mb-8">
     <MudText Typo="Typo.h4" Class="mb-4" Color="Color.Primary"><b>New Loan Application</b></MudText>
 
-    <MudCard Elevation="3" Class="pa-4">
+    <MudOverlay Visible="_processing" DarkBackground="true" Absolute="true" ZIndex="9999">
+        <MudProgressCircular Color="Color.Secondary" Indeterminate="true" />
+    </MudOverlay>
+
+    <MudCard Elevation="3" Class="pa-6">
         <MudForm @ref="form" @bind-IsValid="@success">
             <MudGrid Spacing="3">
 
-                <!-- 1. TYPE & EMPLOYEE -->
+                <!-- 1. APPLICATION TYPE (Dynamic from DB) -->
+                <MudItem xs="12">
+                    <MudText Typo="Typo.h6" Color="Color.Primary">1. Application Type</MudText>
+                    <MudDivider Class="my-2" />
+                </MudItem>
                 <MudItem xs="12" sm="6">
-                    <MudSelect T="string" Label="Applicant Type" Variant="Variant.Outlined" @bind-Value="app.LoanType" Required="true">
-                        <MudSelectItem Value="@("Employee")">Employee Loan</MudSelectItem>
-                        <!-- Other items -->
+                    <MudSelect T="string" Label="Select Applicant Type" Variant="Variant.Outlined"
+                               @bind-Value="app.LoanType" AnchorOrigin="Origin.BottomCenter" Required="true">
+                        @foreach (var type in _appTypes)
+                        {
+                            <MudSelectItem Value="@type.TypeName">@type.TypeName</MudSelectItem>
+                        }
                     </MudSelect>
                 </MudItem>
 
                 @if (app.LoanType == "Employee")
                 {
+                    <!-- SECTION: SELECT EMPLOYEE -->
+                    <MudItem xs="12" Class="mt-4"><MudText Typo="Typo.h6" Color="Color.Primary">2. Select Employee</MudText><MudDivider Class="my-2" /></MudItem>
                     <MudItem xs="12" sm="6">
-                        <MudSelect T="Employee" Label="Select Employee" Variant="Variant.Outlined"
+                        <MudSelect T="Employee" Label="Search Employee" Variant="Variant.Outlined"
                                    ValueChanged="OnEmployeeSelected" ToStringFunc="@(e => $"{e.EmployeeCode} - {e.FullName}")" Required="true">
                             @foreach (var emp in _employees)
                             {
@@ -33,25 +48,81 @@
                             }
                         </MudSelect>
                     </MudItem>
+
+                    @if (app.Employee != null)
+                    {
+                        <MudItem xs="6" sm="3"><MudTextField @bind-Value="app.Employee.Department" Label="Department" Variant="Variant.Filled" ReadOnly="true" /></MudItem>
+                        <MudItem xs="6" sm="3"><MudTextField @bind-Value="app.Employee.Designation" Label="Designation" Variant="Variant.Filled" ReadOnly="true" /></MudItem>
+                        <MudItem xs="6"><MudTextField @bind-Value="app.Employee.PANNumber" Label="PAN Number" Variant="Variant.Filled" ReadOnly="true" /></MudItem>
+                        <MudItem xs="6"><MudTextField @bind-Value="app.Employee.ReportingManagerName" Label="Reporting Manager" Variant="Variant.Filled" ReadOnly="true" /></MudItem>
+                    }
+                }
+                else if (!string.IsNullOrEmpty(app.LoanType))
+                {
+                    <MudItem xs="12">
+                        <MudAlert Severity="Severity.Info">Form for <b>@app.LoanType</b> is currently under development.</MudAlert>
+                    </MudItem>
                 }
 
-                <!-- ... (Keep Loan Details Section) ... -->
-                <MudItem xs="12" Class="mt-4"><MudText Typo="Typo.h6" Color="Color.Primary">2. Loan Details</MudText><MudDivider /></MudItem>
-                <MudItem xs="6"><MudNumericField @bind-Value="app.LoanAmountRequested" Label="Amount" Variant="Variant.Outlined" /></MudItem>
-                <MudItem xs="6"><MudNumericField @bind-Value="app.LoanTenureMonths" Label="Tenure" Variant="Variant.Outlined" /></MudItem>
-                <MudItem xs="12"><MudTextField @bind-Value="app.PurposeOfLoan" Label="Purpose" Variant="Variant.Outlined" /></MudItem>
+                <!-- SECTION: LOAN DETAILS (ALL FIELDS) -->
+                <MudItem xs="12" Class="mt-4"><MudText Typo="Typo.h6" Color="Color.Primary">3. Loan Details</MudText><MudDivider Class="my-2" /></MudItem>
 
-                <!-- 3. BANK DETAILS (AUTO FILLED) -->
-                <MudItem xs="12" Class="mt-4"><MudText Typo="Typo.h6" Color="Color.Primary">3. Disbursement Bank Details</MudText><MudDivider /></MudItem>
-                <MudItem xs="6"><MudTextField @bind-Value="app.BankName" Label="Bank Name" Variant="Variant.Outlined" Required="true" /></MudItem>
-                <MudItem xs="6"><MudTextField @bind-Value="app.BranchName" Label="Branch Name" Variant="Variant.Outlined" Required="true" /></MudItem>
-                <MudItem xs="6"><MudTextField @bind-Value="app.AccountHolderName" Label="Account Holder" Variant="Variant.Outlined" Required="true" /></MudItem>
-                <MudItem xs="6"><MudTextField @bind-Value="app.AccountNumber" Label="Account Number" Variant="Variant.Outlined" Required="true" /></MudItem>
-                <MudItem xs="6"><MudTextField @bind-Value="app.IFSCCode" Label="IFSC Code" Variant="Variant.Outlined" Required="true" /></MudItem>
+                <MudItem xs="6">
+                    <MudNumericField @bind-Value="app.LoanAmountRequested" Label="Loan Amount (₹)" Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.CurrencyRupee" HideSpinButtons="true" Required="true" Min="1" Disabled="@_disableInputs" />
+                </MudItem>
+                <MudItem xs="6">
+                    <MudNumericField @bind-Value="app.LoanTenureMonths" Label="Tenure (Months)" Variant="Variant.Outlined" HideSpinButtons="true" Required="true" Min="1" Disabled="@_disableInputs" />
+                </MudItem>
+                <MudItem xs="6">
+                    <MudNumericField @bind-Value="app.ProposedEMIAmount" Label="Proposed EMI (₹)" Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.CurrencyRupee" HideSpinButtons="true" Disabled="@_disableInputs" />
+                </MudItem>
 
-                <!-- ... (Keep rest of form) ... -->
-                <MudItem xs="12" Class="mt-4"><MudCheckBox @bind-Value="app.IsDeclared" Label="I hereby declare that all the information provided above are true and I stand by them." Color="Color.Success" Required="true" /></MudItem>
-                <MudItem xs="12"><MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SubmitForm">Submit</MudButton></MudItem>
+                <!-- PURPOSE DROPDOWN (Dynamic from DB) -->
+                <MudItem xs="6">
+                    <MudSelect T="string" Label="Purpose of Loan" Variant="Variant.Outlined" @bind-Value="app.PurposeOfLoan" AnchorOrigin="Origin.BottomCenter" Required="true" Disabled="@_disableInputs">
+                        @foreach (var p in _purposes)
+                        {
+                            <MudSelectItem Value="@p.PurposeName">@p.PurposeName</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="app.ExistingLoanDetails" Label="Existing Loan Details (if any)" Variant="Variant.Outlined" Lines="2" Disabled="@_disableInputs" />
+                </MudItem>
+
+                <!-- SECTION: BANK DETAILS (Auto-Filled but Editable) -->
+                <MudItem xs="12" Class="mt-4"><MudText Typo="Typo.h6" Color="Color.Primary">4. Disbursement Bank Details</MudText><MudDivider Class="my-2" /></MudItem>
+                <MudItem xs="6"><MudTextField @bind-Value="app.BankName" Label="Bank Name" Variant="Variant.Outlined" Required="true" Disabled="@_disableInputs" /></MudItem>
+                <MudItem xs="6"><MudTextField @bind-Value="app.BranchName" Label="Branch Name" Variant="Variant.Outlined" Required="true" Disabled="@_disableInputs" /></MudItem>
+                <MudItem xs="6"><MudTextField @bind-Value="app.AccountHolderName" Label="Account Holder Name" Variant="Variant.Outlined" Required="true" Disabled="@_disableInputs" /></MudItem>
+                <MudItem xs="6"><MudTextField @bind-Value="app.AccountNumber" Label="Account Number" Variant="Variant.Outlined" Required="true" Disabled="@_disableInputs" /></MudItem>
+                <MudItem xs="6"><MudTextField @bind-Value="app.IFSCCode" Label="IFSC Code" Variant="Variant.Outlined" Required="true" Disabled="@_disableInputs" /></MudItem>
+
+                <!-- SECTION: REMARKS -->
+                <MudItem xs="12" Class="mt-4"><MudText Typo="Typo.h6" Color="Color.Primary">5. Additional Info</MudText><MudDivider Class="my-2" /></MudItem>
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="app.EmployeeRemarks" Label="Remarks (Optional)" Variant="Variant.Outlined" Lines="2" Disabled="@_disableInputs" />
+                </MudItem>
+
+                <!-- SECTION: DECLARATION -->
+                <MudItem xs="12" Class="mt-4">
+                    <MudCheckBox @bind-Value="app.IsDeclared" Label="I hereby declare that all information provided is true and correct." Color="Color.Success" Required="true" Disabled="@_disableInputs" />
+                </MudItem>
+
+                <MudItem xs="12" Class="d-flex justify-end mt-4 mb-8">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large" OnClick="SubmitForm" Disabled="@(!success || _processing || (app.LoanType == "Employee" && (app.EmployeeID == null || app.EmployeeID == 0)) || _disableInputs)" StartIcon="@Icons.Material.Filled.Send" Class="px-8">
+                        @if (_processing)
+                        {
+                            <MudText>Processing...</MudText>
+                        }
+                        else
+                        {
+
+                            <MudText>Submit Application</MudText>
+                        }
+                    </MudButton>
+                </MudItem>
             </MudGrid>
         </MudForm>
     </MudCard>
@@ -59,25 +130,84 @@
 
 @code {
     bool success;
+    bool _processing = false;
+    bool _disableInputs = false; // Controls whether inputs are editable
     MudForm form = default!;
+
+    // Master Data Lists
     List<Employee> _employees = new();
+    List<ApplicationType> _appTypes = new();
+    List<LoanPurpose> _purposes = new();
+
     LoanApplication app = new LoanApplication { Employee = new Employee(), LoanType = "Employee" };
 
     protected override async Task OnInitializedAsync()
     {
-        try { _employees = await LoanService.GetAllEmployeesAsync(); }
-        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        try
+        {
+            var t1 = LoanService.GetAllEmployeesAsync();
+            var t2 = LoanService.GetApplicationTypesAsync();
+            var t3 = LoanService.GetLoanPurposesAsync();
+
+            await Task.WhenAll(t1, t2, t3);
+
+            _employees = t1.Result;
+            _appTypes = t2.Result;
+            _purposes = t3.Result;
+        }
+        catch (Exception ex) { Snackbar.Add($"Error loading data: {ex.Message}", Severity.Error); }
     }
 
-    private void OnEmployeeSelected(Employee selected)
+    private async Task OnEmployeeSelected(Employee selected)
     {
+        // Check for existing loans FIRST
+        var existingLoan = await LoanService.GetActiveOrPendingLoanAsync(selected.EmployeeID);
+
+        if (existingLoan != null)
+        {
+            // Case 1: Pending Approval/Agreement -> BLOCK
+            if (existingLoan.ApplicationStatus == "Pending Approval" || existingLoan.ApplicationStatus == "Pending Agreement")
+            {
+                await DialogService.ShowMessageBox("Application Blocked", "This employee already has a pending loan request. You cannot apply for a new one until the previous one is processed.", yesText: "OK");
+
+                // Clear selection
+                app.Employee = null;
+                app.EmployeeID = null;
+                _disableInputs = true;
+                return;
+            }
+
+            // Case 2: Running Loan -> WARN & CONTINUE
+            if (existingLoan.ApplicationStatus == "Active" || existingLoan.ApplicationStatus == "Pending Payment")
+            {
+                bool? result = await DialogService.ShowMessageBox(
+                    "Existing Loan Found",
+                    $"This employee has an active loan (ID: {existingLoan.ApplicationID}). Do you want to apply for a Top-up/New Loan?",
+                    yesText: "Yes, Continue", cancelText: "No");
+
+                if (result != true)
+                {
+                    // User clicked No
+                    app.Employee = null;
+                    app.EmployeeID = null;
+                    _disableInputs = true;
+                    return;
+                }
+
+                // User clicked Yes -> Auto-fill details from OLD loan for convenience
+                app.ExistingLoanDetails = $"Ref Loan #{existingLoan.ApplicationID} - Bal: {existingLoan.LoanAmountRequested}"; // Simplified logic
+            }
+        }
+
+        // If we reach here, we are good to go
+        _disableInputs = false;
         app.Employee = selected;
         app.EmployeeID = selected.EmployeeID;
 
-        // --- AUTO FILL LOGIC ---
+        // Auto-fill Bank Details
+        if (string.IsNullOrWhiteSpace(app.AccountHolderName)) app.AccountHolderName = selected.FullName;
         app.BankName = selected.BankName;
         app.BranchName = selected.BankBranch;
-        app.AccountHolderName = selected.BankAccountHolderName ?? selected.FullName;
         app.AccountNumber = selected.BankAccountNumber;
         app.IFSCCode = selected.BankIFSC;
     }
@@ -85,6 +215,22 @@
     private async Task SubmitForm()
     {
         await form.Validate();
-        if (form.IsValid) { await LoanService.SubmitApplicationAsync(app); Nav.NavigateTo("/"); }
+        if (form.IsValid)
+        {
+            _processing = true;
+            try
+            {
+                await Task.Delay(1000);
+                var result = await LoanService.SubmitApplicationAsync(app);
+                if (result) { Snackbar.Add("Application Submitted Successfully!", Severity.Success); Nav.NavigateTo("/"); }
+                else { Snackbar.Add("Failed to submit.", Severity.Warning); }
+            }
+            catch (Exception ex) { Snackbar.Add($"Error: {ex.Message}", Severity.Error); }
+            finally { _processing = false; }
+        }
+        else if (app.LoanType == "Employee" && (app.EmployeeID == null || app.EmployeeID == 0))
+        {
+            Snackbar.Add("Please select an employee.", Severity.Warning);
+        }
     }
 }

@@ -316,7 +316,14 @@
                                                 <MudItem xs="6"><MudTextField @bind-Value="newEmployee.FullName" Label="Full Name" Variant="Variant.Outlined" Required="true" /></MudItem>
                                                 <MudItem xs="6"><MudTextField @bind-Value="newEmployee.Department" Label="Department" Variant="Variant.Outlined" Required="true" /></MudItem>
                                                 <MudItem xs="6"><MudTextField @bind-Value="newEmployee.Designation" Label="Designation" Variant="Variant.Outlined" /></MudItem>
-                                                <MudItem xs="6"><MudTextField @bind-Value="newEmployee.Company" Label="Company" Variant="Variant.Outlined" /></MudItem>
+                                                <MudItem xs="12" md="6">
+                                                    <MudSelect T="string" Label="Company" Variant="Variant.Outlined" @bind-Value="newEmployee.Company" AnchorOrigin="Origin.BottomCenter" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Business">
+                                                        @foreach (var comp in _companies)
+                                                        {
+                                                            <MudSelectItem Value="@comp.CompanyName">@comp.CompanyName</MudSelectItem>
+                                                        }
+                                                    </MudSelect>
+                                                </MudItem>
                                                 <MudItem xs="6"><MudDatePicker @bind-Date="newEmployee.DateOfJoining" Label="Date of Joining" Variant="Variant.Outlined" Editable="true" /></MudItem>
                                             </MudGrid>
                                         </MudItem>
@@ -545,6 +552,7 @@
     Employee newEmployee = new();
     Employee _selectedEmployee = new();
     List<LoanApplication> _employeeLoans = new();
+    List<Company> _companies = new(); // NEW
 
     string searchString1 = "";
     int _importedCount = 0;
@@ -552,8 +560,13 @@
     string? aadhaarFileName;
     bool _showProfile = false;
 
-    protected override async Task OnInitializedAsync() => await LoadEmployees();
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadEmployees();
+        _companies = await LoanService.GetCompaniesAsync(); // Load Companies
+    }
     private async Task LoadEmployees() => _employees = await LoanService.GetAllEmployeesAsync();
+
 
     private bool FilterFunc1(Employee element) => FilterFunc(element, searchString1);
     private bool FilterFunc(Employee element, string searchString)
