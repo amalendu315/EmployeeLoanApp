@@ -102,6 +102,12 @@ namespace EmployeeLoanApp.Models
         [Required]
         public int LoanTenureMonths { get; set; }
 
+        // NEW: When does the repayment start?
+        public DateTime? EMIStartDate { get; set; }
+
+        // Navigation property for Repayments (Collection)
+        public List<LoanRepayment> Repayments { get; set; } = new();    
+
         public string? PurposeOfLoan { get; set; }
 
         // Bank Details
@@ -149,5 +155,56 @@ namespace EmployeeLoanApp.Models
 
         public DateTime ApprovalDate { get; set; } = DateTime.Now;
         public string? AdminComments { get; set; }
+    }
+
+    // NEW: Repayment / EMI Record
+    public class LoanRepayment
+    {
+        [Key]
+        public int RepaymentID { get; set; }
+
+        public int ApplicationID { get; set; }
+        [ForeignKey("ApplicationID")]
+        public LoanApplication? Application { get; set; }
+
+        public DateTime EMIDueDate { get; set; }
+
+        [Column(TypeName = "decimal(18, 2)")]
+        public decimal EMIAmount { get; set; }
+
+        public DateTime? PaymentDate { get; set; }
+
+        [Column(TypeName = "decimal(18, 2)")]
+        public decimal? PaymentAmount { get; set; }
+
+        public string? PaymentProofPath { get; set; }
+        public string Status { get; set; } = "Pending"; // Pending, Paid, Overdue
+        public string? Remarks { get; set; }
+    }
+
+    // NEW: Audit Log for Edits
+    public class LoanAuditLog
+    {
+        [Key]
+        public int LogID { get; set; }
+
+        public int ApplicationID { get; set; }
+
+        public string ModifiedBy { get; set; } = "System";
+        public DateTime ModificationDate { get; set; } = DateTime.Now;
+
+        public string FieldChanged { get; set; } = "";
+        public string? OldValue { get; set; }
+        public string? NewValue { get; set; }
+        public string? Reason { get; set; }
+    }
+
+    // Helper DTOs for Reports (Not DB Tables)
+    public class CompanyLoanSummary
+    {
+        public string CompanyName { get; set; } = "";
+        public int TotalLoans { get; set; }
+        public decimal TotalAmountDisbursed { get; set; }
+        public decimal TotalAmountPending { get; set; }
     }
 }

@@ -41,7 +41,7 @@
                     <MudItem xs="12" Class="mt-4"><MudText Typo="Typo.h6" Color="Color.Primary">2. Select Employee</MudText><MudDivider Class="my-2" /></MudItem>
                     <MudItem xs="12" sm="6">
                         <MudSelect T="Employee" Label="Search Employee" Variant="Variant.Outlined"
-                                   ValueChanged="OnEmployeeSelected" ToStringFunc="@(e => $"{e.EmployeeCode} - {e.FullName}")" Required="true">
+                                   ValueChanged="OnEmployeeSelected" ToStringFunc="@(e => $"{e?.EmployeeCode} - {e?.FullName}")" Required="true">
                             @foreach (var emp in _employees)
                             {
                                 <MudSelectItem Value="@emp" />
@@ -75,6 +75,10 @@
                 </MudItem>
                 <MudItem xs="6">
                     <MudNumericField @bind-Value="app.ProposedEMIAmount" Label="Proposed EMI (₹)" Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.CurrencyRupee" HideSpinButtons="true" Disabled="@_disableInputs" />
+                </MudItem>
+                <!-- NEW: EMI START DATE -->
+                <MudItem xs="6">
+                    <MudDatePicker @bind-Date="app.EMIStartDate" Label="Preferred EMI Start Date" Variant="Variant.Outlined" Editable="true" />
                 </MudItem>
 
                 <!-- PURPOSE DROPDOWN (Dynamic from DB) -->

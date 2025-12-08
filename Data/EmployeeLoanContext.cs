@@ -17,6 +17,8 @@ namespace EmployeeLoanApp.Data
         public DbSet<ApplicationType> ApplicationTypes { get; set; }
         public DbSet<Company> Companies { get; set; }
         public DbSet<LoanPurpose> LoanPurposes { get; set; }
+        public DbSet<LoanRepayment> LoanRepayments { get; set; }
+        public DbSet<LoanAuditLog> LoanAuditLogs { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -57,6 +59,8 @@ namespace EmployeeLoanApp.Data
             modelBuilder.Entity<LoanApproval>().Property(p => p.SanctionedAmount).HasColumnType("decimal(18,2)");
             modelBuilder.Entity<LoanApproval>().Property(p => p.SanctionedEMIAmount).HasColumnType("decimal(18,2)");
             modelBuilder.Entity<Employee>().Property(p => p.OpeningLoanBalance).HasColumnType("decimal(18,2)");
+            modelBuilder.Entity<LoanRepayment>().Property(p => p.EMIAmount).HasColumnType("decimal(18,2)");
+            modelBuilder.Entity<LoanRepayment>().Property(p => p.PaymentAmount).HasColumnType("decimal(18,2)");
         }
     }
 }

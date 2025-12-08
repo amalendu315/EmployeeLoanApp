@@ -6,11 +6,28 @@
 @inject IWebHostEnvironment Env
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
+@inject NavigationManager Nav
 @rendermode InteractiveServer
 
 <PageTitle>Dashboard | Kalyana Impex Pvt. Ltd.</PageTitle>
 
 <style>
+    .loan-sheet-drawer {
+        width: 600px;
+        padding: 24px;
+        background: #FFFFFF;
+        height: 100%;
+        overflow-y: auto;
+    }
+
+    .sheet-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding-bottom: 16px;
+        border-bottom: 1px solid #E2E8F0;
+        margin-bottom: 24px;
+    }
     /* KPI Card Styling */
     .kpi-card {
         background: white;
@@ -84,7 +101,7 @@
             <MudButton Variant="Variant.Filled" Color="Color.Primary" Link="/employees" StartIcon="@Icons.Material.Filled.PersonAdd" Class="px-6 rounded-lg" Href="/employees">Add Employee</MudButton>
         </div>
     </div>
-
+    <MudText Typo="Typo.h5" Class="mb-4" Style="font-weight:700;">Active Applications</MudText>
     @if (pendingApps == null)
     {
         <div class="d-flex justify-center align-center" style="height: 400px;">
@@ -161,24 +178,19 @@
                     <RowTemplate>
                         <MudTd>
                             <div class="d-flex align-center">
-                                <MudAvatar Color="Color.Primary" Variant="Variant.Filled" Size="Size.Medium" Class="mr-3 rounded-lg">@context.Employee?.FullName?.Substring(0, 1)</MudAvatar>
+                                <MudAvatar Color="Color.Primary" Variant="Variant.Filled" Size="Size.Medium" Class="mr-3 rounded-lg">@(context.Employee?.FullName?.Substring(0, 1) ?? "?")</MudAvatar>
                                 <div>
                                     <MudText Typo="Typo.subtitle2"><b>@context.Employee?.FullName</b></MudText>
-                                    <MudText Typo="Typo.caption" Color="Color.Secondary">@context.Employee?.Department • @context.Employee?.Designation</MudText>
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">@context.Employee?.Department</MudText>
                                 </div>
                             </div>
                         </MudTd>
-                        <MudTd>
-                            <MudText Typo="Typo.body2" Style="font-family:monospace; color:#64748B;">#@context.ApplicationID</MudText>
-                        </MudTd>
+                        <MudTd><MudText Typo="Typo.body2" Style="font-family:monospace; color:#64748B;">#@context.ApplicationID</MudText></MudTd>
                         <MudTd>
                             <MudText Typo="Typo.subtitle2"><b>₹@context.LoanAmountRequested.ToString("N0")</b></MudText>
                             <MudText Typo="Typo.caption" Color="Color.Secondary">@context.LoanTenureMonths Months</MudText>
                         </MudTd>
-                        <MudTd>
-                            <MudText Typo="Typo.body2">@context.SubmissionDate.ToString("MMM dd, yyyy")</MudText>
-                            <MudText Typo="Typo.caption" Color="Color.Secondary">@((DateTime.Now - context.SubmissionDate).Days) days ago</MudText>
-                        </MudTd>
+                        <MudTd>@context.SubmissionDate.ToString("MMM dd")</MudTd>
                         <MudTd>
                             @if (context.ApplicationStatus == "Pending Approval")
                             {
@@ -196,29 +208,76 @@
                         <MudTd Style="text-align:right">
                             @if (context.ApplicationStatus == "Pending Approval")
                             {
-                                <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" OnClick="@(() => OpenSanctionDialog(context))" Class="rounded-lg px-4">Review & Sanction</MudButton>
+                                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Default" Size="Size.Small" OnClick="@(() => OpenEditSheet(context))" Class="mr-2" />
+                                <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" OnClick="@(() => OpenSanctionDialog(context))">Sanction</MudButton>
                             }
                             else if (context.ApplicationStatus == "Pending Payment")
                             {
-                                <MudButton Variant="Variant.Filled" Color="Color.Success" Size="Size.Small" OnClick="@(() => MarkPaid(context.ApplicationID))" StartIcon="@Icons.Material.Filled.AttachMoney" Class="rounded-lg px-4">Disburse Funds</MudButton>
+                                <MudButton Variant="Variant.Filled" Color="Color.Success" Size="Size.Small" OnClick="@(() => MarkPaid(context.ApplicationID))">Disburse</MudButton>
                             }
                             else
                             {
-                                <MudButton Variant="Variant.Outlined" Disabled="true" Size="Size.Small" Class="rounded-lg px-4">Waiting</MudButton>
+                                <MudButton Variant="Variant.Outlined" Size="Size.Small" OnClick="@(() => OpenEditSheet(context))">View / Edit</MudButton>
                             }
                         </MudTd>
                     </RowTemplate>
-                    <PagerContent>
-                        <MudTablePager />
-                    </PagerContent>
                 </MudTable>
             }
         </div>
     }
 </MudContainer>
 
+<!-- EDIT LOAN SHEET (DRAWER) -->
+<MudDrawer @bind-Open="_drawerOpen" Anchor="Anchor.End" Elevation="1" Variant="DrawerVariant.Temporary" Width="600px">
+    <div class="loan-sheet-drawer">
+        <div class="sheet-header">
+            <MudText Typo="Typo.h5"><b>Manage Loan #@_selectedLoan.ApplicationID</b></MudText>
+            <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="@(() => _drawerOpen = false)" />
+        </div>
+
+        <MudForm @ref="_editForm">
+            <MudText Typo="Typo.subtitle2" Color="Color.Primary" Class="mb-3">FINANCIALS (EDITABLE)</MudText>
+            <MudGrid Spacing="2">
+                <MudItem xs="6">
+                    <MudNumericField @bind-Value="_selectedLoan.LoanAmountRequested" Label="Principal Amount" Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.CurrencyRupee" />
+                </MudItem>
+                <MudItem xs="6">
+                    <MudNumericField @bind-Value="_selectedLoan.LoanTenureMonths" Label="Tenure (Months)" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="6">
+                    <MudNumericField @bind-Value="_selectedLoan.ProposedEMIAmount" Label="Monthly EMI" Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.PieChart" />
+                </MudItem>
+                <MudItem xs="6">
+                    <MudDatePicker @bind-Date="_selectedLoan.EMIStartDate" Label="EMI Start Date" Variant="Variant.Outlined" />
+                </MudItem>
+            </MudGrid>
+
+            <MudDivider Class="my-6" />
+
+            <MudText Typo="Typo.subtitle2" Color="Color.Primary" Class="mb-3">DETAILS</MudText>
+            <MudGrid Spacing="2">
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="_selectedLoan.PurposeOfLoan" Label="Purpose" Variant="Variant.Outlined" Lines="2" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="_selectedLoan.ExistingLoanDetails" Label="Existing Loan Info" Variant="Variant.Outlined" />
+                </MudItem>
+            </MudGrid>
+
+            <div class="d-flex justify-end mt-8 gap-2">
+                <MudButton Variant="Variant.Outlined" OnClick="@(() => _drawerOpen = false)">Cancel</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveLoanChanges" StartIcon="@Icons.Material.Filled.Save">Save Changes</MudButton>
+            </div>
+        </MudForm>
+    </div>
+</MudDrawer>
+
+
 @code {
     private List<LoanApplication>? pendingApps;
+    private bool _drawerOpen = false;
+    private LoanApplication _selectedLoan = new();
+    private MudForm _editForm;
 
     protected override async Task OnInitializedAsync()
     {
@@ -260,6 +319,22 @@
             Snackbar.Add("Loan Sanctioned Successfully", Severity.Success);
             await LoadData(); // Refresh to update KPIs and Table
         }
+    }
+
+    private void OpenEditSheet(LoanApplication app)
+    {
+        // Clone or attach the object. For simplicity, we attach.
+        // In prod, clone to avoid editing grid without saving.
+        _selectedLoan = app;
+        _drawerOpen = true;
+    }
+
+    private async Task SaveLoanChanges()
+    {
+        await LoanService.UpdateLoanAsync(_selectedLoan, "HR_Admin"); // Replace "HR_Admin" with real user
+        Snackbar.Add("Loan details updated successfully!", Severity.Success);
+        _drawerOpen = false;
+        await LoadData();
     }
 
     private async Task MarkPaid(int appId)

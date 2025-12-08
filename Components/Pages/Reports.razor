@@ -1,0 +1,259 @@
+﻿@page "/reports"
+@using EmployeeLoanApp.Services
+@using EmployeeLoanApp.Models
+@rendermode InteractiveServer
+@inject LoanService LoanService
+
+<PageTitle>Reports | Kalyana Impex</PageTitle>
+
+<style>
+    .report-card {
+        background: white;
+        border-radius: 12px;
+        border: 1px solid #E2E8F0;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        height: 100%;
+        transition: transform 0.2s;
+    }
+
+    .report-header {
+        background: #F8FAFC;
+        padding: 16px 24px;
+        border-bottom: 1px solid #E2E8F0;
+        border-radius: 12px 12px 0 0;
+    }
+
+    .empty-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 60px 20px;
+        color: #94A3B8;
+        text-align: center;
+    }
+
+    .stat-box {
+        background: #F1F5F9;
+        border-radius: 8px;
+        padding: 16px;
+        text-align: center;
+    }
+
+    .stat-label {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: #64748B;
+        font-weight: 700;
+    }
+
+    .stat-value {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: #0F172A;
+        margin-top: 4px;
+    }
+</style>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-8 mb-16">
+    <div class="d-flex justify-space-between align-center mb-8">
+        <div>
+            <MudText Typo="Typo.h4" Style="font-weight:700; color:#0F172A;">Reports & Analytics</MudText>
+            <MudText Typo="Typo.body1" Color="Color.Secondary">Track repayments, company exposure, and loan health.</MudText>
+        </div>
+        <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Download" Color="Color.Primary">Export Data</MudButton>
+    </div>
+
+    <MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true" PanelClass="mt-6" Color="Color.Primary" SliderColor="Color.Primary">
+
+        <!-- REPORT 1: INDIVIDUAL LOAN STATEMENT -->
+        <MudTabPanel Text="Loan Statement" Icon="@Icons.Material.Filled.ReceiptLong">
+            <MudGrid>
+                <!-- Filters -->
+                <MudItem xs="12" md="4">
+                    <MudPaper Elevation="0" Class="report-card pa-6">
+                        <MudText Typo="Typo.h6" Class="mb-4"><b>Select Loan</b></MudText>
+                        <MudSelect T="int" Label="Search Employee / Loan ID" ValueChanged="LoadLoanStatement" Variant="Variant.Outlined" AnchorOrigin="Origin.BottomCenter" AdornmentIcon="@Icons.Material.Filled.Search">
+                            @if (_allActiveLoans != null && _allActiveLoans.Any())
+                            {
+                                @foreach (var loan in _allActiveLoans)
+                                {
+                                    <MudSelectItem Value="@loan.ApplicationID">
+                                        <div class="d-flex flex-column">
+                                            <MudText Typo="Typo.body2"><b>@loan.Employee?.FullName</b></MudText>
+                                            <MudText Typo="Typo.caption">Ref: #@loan.ApplicationID • ₹@loan.LoanAmountRequested.ToString("N0")</MudText>
+                                        </div>
+                                    </MudSelectItem>
+                                }
+                            }
+                            else
+                            {
+                                <MudSelectItem Value="0" Disabled="true">No active loans found</MudSelectItem>
+                            }
+                        </MudSelect>
+
+                        @if (_selectedLoanId > 0 && _repayments.Any())
+                        {
+                            <MudDivider Class="my-6" />
+                            <MudText Typo="Typo.subtitle2" Class="mb-3"><b>Summary</b></MudText>
+                            <MudGrid Spacing="2">
+                                <MudItem xs="6">
+                                    <div class="stat-box">
+                                        <div class="stat-label">Total Paid</div>
+                                        <div class="stat-value" style="color:#10B981">₹@_repayments.Where(r => r.Status == "Paid").Sum(r => r.PaymentAmount ?? 0).ToString("N0")</div>
+                                    </div>
+                                </MudItem>
+                                <MudItem xs="6">
+                                    <MudItem xs="12">
+                                        <div class="stat-box">
+                                            <div class="stat-label">Pending</div>
+                                            <div class="stat-value" style="color:#F59E0B">₹@_repayments.Where(r => r.Status != "Paid").Sum(r => r.EMIAmount).ToString("N0")</div>
+                                        </div>
+                                    </MudItem>
+                                </MudItem>
+                            </MudGrid>
+                        }
+                    </MudPaper>
+                </MudItem>
+
+                <!-- Data Table -->
+                <MudItem xs="12" md="8">
+                    <MudPaper Elevation="0" Class="report-card overflow-hidden">
+                        <div class="report-header d-flex justify-space-between align-center">
+                            <MudText Typo="Typo.h6"><b>Repayment Schedule</b></MudText>
+                            @if (_selectedLoanId > 0)
+                            {
+                                <MudChip T="string" Color="Color.Primary" Size="Size.Small" Variant="Variant.Outlined">Loan #@_selectedLoanId</MudChip>
+                            }
+                        </div>
+
+                        @if (_selectedLoanId == 0)
+                        {
+                            <div class="empty-state">
+                                <MudIcon Icon="@Icons.Material.Filled.TouchApp" Size="Size.Large" Style="font-size: 64px; opacity: 0.2;" />
+                                <MudText Typo="Typo.h6" Class="mt-4">Select a loan to view details</MudText>
+                                <MudText Typo="Typo.body2">Choose an employee from the list on the left.</MudText>
+                            </div>
+                        }
+                        else if (!_repayments.Any())
+                        {
+                            <div class="empty-state">
+                                <MudIcon Icon="@Icons.Material.Filled.EventBusy" Size="Size.Large" Style="font-size: 64px; opacity: 0.2; color: #EF4444;" />
+                                <MudText Typo="Typo.h6" Class="mt-4">No Schedule Generated</MudText>
+                                <MudText Typo="Typo.body2">This loan has been sanctioned but the repayment schedule is not yet active.</MudText>
+                            </div>
+                        }
+                        else
+                        {
+                            <MudTable Items="_repayments" Hover="true" Striped="true" Dense="true" Elevation="0" Class="pa-0">
+                                <HeaderContent>
+                                    <MudTh>Due Date</MudTh>
+                                    <MudTh>Expected EMI</MudTh>
+                                    <MudTh>Payment Date</MudTh>
+                                    <MudTh>Actual Paid</MudTh>
+                                    <MudTh>Status</MudTh>
+                                    <MudTh>Proof</MudTh>
+                                </HeaderContent>
+                                <RowTemplate>
+                                    <MudTd><b>@context.EMIDueDate.ToString("MMM dd, yyyy")</b></MudTd>
+                                    <MudTd>₹@context.EMIAmount.ToString("N2")</MudTd>
+                                    <MudTd>@(context.PaymentDate?.ToString("MMM dd, yyyy") ?? "-")</MudTd>
+                                    <MudTd>@(context.PaymentAmount != null ? $"₹{context.PaymentAmount:N2}" : "-")</MudTd>
+                                    <MudTd>
+                                        @if (context.Status == "Paid")
+                                        {
+                                            <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Filled">Paid</MudChip>
+                                        }
+                                        else if (context.EMIDueDate < DateTime.Now)
+                                        {
+                                            <MudChip T="string" Color="Color.Error" Size="Size.Small" Variant="Variant.Filled">Overdue</MudChip>
+                                        }
+                                        else
+                                        {
+                                            <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Text">Pending</MudChip>
+                                        }
+                                    </MudTd>
+                                    <MudTd>
+                                        @if (!string.IsNullOrEmpty(context.PaymentProofPath))
+                                        {
+                                            <MudIconButton Icon="@Icons.Material.Filled.Visibility" Size="Size.Small" Color="Color.Primary" />
+                                        }
+                                        else
+                                        {
+                                            <MudText Typo="Typo.caption" Color="Color.Secondary">--</MudText>
+                                        }
+                                    </MudTd>
+                                </RowTemplate>
+                            </MudTable>
+                        }
+                    </MudPaper>
+                </MudItem>
+            </MudGrid>
+        </MudTabPanel>
+
+        <!-- REPORT 3: COMPANY SUMMARY -->
+        <MudTabPanel Text="Company Exposure" Icon="@Icons.Material.Filled.Business">
+            <MudPaper Elevation="0" Class="report-card mt-2">
+                <div class="report-header">
+                    <MudText Typo="Typo.h6"><b>Company-wise Loan Summary</b></MudText>
+                </div>
+
+                @if (_companySummaries == null || !_companySummaries.Any())
+                {
+                    <div class="empty-state">
+                        <MudIcon Icon="@Icons.Material.Filled.DomainDisabled" Size="Size.Large" Style="font-size: 64px; opacity: 0.2;" />
+                        <MudText Typo="Typo.h6" Class="mt-4">No Data Available</MudText>
+                        <MudText Typo="Typo.body2">There are no active loans recorded for any company yet.</MudText>
+                    </div>
+                }
+                else
+                {
+                    <MudTable Items="_companySummaries" Hover="true" Elevation="0">
+                        <HeaderContent>
+                            <MudTh>Company Name</MudTh>
+                            <MudTh>Active Loans</MudTh>
+                            <MudTh>Total Disbursed</MudTh>
+                            <MudTh>Total Pending</MudTh>
+                            <MudTh>Risk Level</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd>
+                                <div class="d-flex align-center">
+                                    <MudAvatar Color="Color.Primary" Variant="Variant.Text" Class="mr-3">@context.CompanyName.Substring(0, 1)</MudAvatar>
+                                    <b>@context.CompanyName</b>
+                                </div>
+                            </MudTd>
+                            <MudTd>@context.TotalLoans</MudTd>
+                            <MudTd>₹@context.TotalAmountDisbursed.ToString("N0")</MudTd>
+                            <MudTd>₹@context.TotalAmountPending.ToString("N0")</MudTd>
+                            <MudTd>
+                                <MudProgressLinear Color="Color.Info" Value="@((double)context.TotalAmountPending / (double)(context.TotalAmountDisbursed == 0 ? 1 : context.TotalAmountDisbursed) * 100)" Class="my-3" />
+                            </MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                }
+            </MudPaper>
+        </MudTabPanel>
+    </MudTabs>
+</MudContainer>
+
+@code {
+    List<LoanApplication> _allActiveLoans = new();
+    List<LoanRepayment> _repayments = new();
+    List<CompanyLoanSummary> _companySummaries = new();
+    int _selectedLoanId = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Load lists for dropdowns and summaries
+        _allActiveLoans = await LoanService.GetMyLoansAsync();
+        _companySummaries = await LoanService.GetCompanyWiseSummaryAsync();
+    }
+
+    private async Task LoadLoanStatement(int appId)
+    {
+        _selectedLoanId = appId;
+        _repayments = await LoanService.GetLoanStatementAsync(appId);
+    }
+}

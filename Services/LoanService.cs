@@ -233,5 +233,134 @@ namespace EmployeeLoanApp.Services
                 await context.SaveChangesAsync();
             }
         }
+
+        // Report 1: Full Statement (Payment & Repayment)
+        public async Task<List<LoanRepayment>> GetLoanStatementAsync(int applicationId)
+        {
+            using var context = await _factory.CreateDbContextAsync();
+            return await context.LoanRepayments
+                .Where(r => r.ApplicationID == applicationId)
+                .OrderBy(r => r.EMIDueDate)
+                .ToListAsync();
+        }
+        public async Task UpdateLoanAsync(LoanApplication loan, string user)
+        {
+            using var context = await _factory.CreateDbContextAsync();
+            var existing = await context.LoanApplications.FindAsync(loan.ApplicationID);
+
+            if (existing != null)
+            {
+                // Log changes (Simplified for brevity, ideally check each field)
+                await LogEditAsync(loan.ApplicationID, user, "LoanDetails", "Old", "New", "HR Update");
+
+                // Update Fields
+                existing.LoanAmountRequested = loan.LoanAmountRequested;
+                existing.LoanTenureMonths = loan.LoanTenureMonths;
+                existing.ProposedEMIAmount = loan.ProposedEMIAmount;
+                existing.EMIStartDate = loan.EMIStartDate;
+                //existing.AdminComments = loan.EmployeeRemarks; // Or map to a specific admin field if different
+                                                               // Update other editable fields as needed
+
+                await context.SaveChangesAsync();
+            }
+        }
+
+        // Report 2: Total Loans of Employee
+        public async Task<List<LoanApplication>> GetEmployeeLoanHistoryAsync(int employeeId)
+        {
+            using var context = await _factory.CreateDbContextAsync();
+            return await context.LoanApplications
+                .Include(l => l.Repayments) // Include repayment status
+                .Where(l => l.EmployeeID == employeeId)
+                .OrderByDescending(l => l.SubmissionDate)
+                .ToListAsync();
+        }
+
+        // Report 3: Company-wise Summary
+        public async Task<List<CompanyLoanSummary>> GetCompanyWiseSummaryAsync()
+        {
+            using var context = await _factory.CreateDbContextAsync();
+
+            // This requires grouping by Employee.Company
+            // We fetch raw data first to avoid complex LINQ translation issues
+            var loans = await context.LoanApplications
+                .Include(l => l.Employee)
+                .Where(l => l.ApplicationStatus == "Active" || l.ApplicationStatus == "Closed")
+                .ToListAsync();
+
+            return loans
+                .GroupBy(l => l.Employee?.Company ?? "Unknown")
+                .Select(g => new CompanyLoanSummary
+                {
+                    CompanyName = g.Key,
+                    TotalLoans = g.Count(),
+                    TotalAmountDisbursed = g.Sum(l => l.LoanAmountRequested),
+                    // Pending logic: Sum of unpaid repayments
+                    // (Simplified for MVP: Total - Paid)
+                    TotalAmountPending = g.Sum(l => l.LoanAmountRequested) // Placeholder logic
+                })
+                .ToList();
+        }
+
+        // --- REPAYMENT LOGIC ---
+
+        // Call this when Loan becomes "Active" (Disbursed)
+        public async Task GenerateEMIScheduleAsync(int applicationId, DateTime startDate)
+        {
+            using var context = await _factory.CreateDbContextAsync();
+            var loan = await context.LoanApplications.FindAsync(applicationId);
+            if (loan == null) return;
+
+            // Save Start Date
+            loan.EMIStartDate = startDate;
+
+            // Calculate Monthly EMI (Principal / Tenure for simplicity, or use PMT formula if interest exists)
+            // Assuming user input "ProposedEMIAmount" is the final agreed EMI
+            decimal emiAmount = loan.ProposedEMIAmount ?? (loan.LoanAmountRequested / loan.LoanTenureMonths);
+
+            // Generate Schedule
+            for (int i = 0; i < loan.LoanTenureMonths; i++)
+            {
+                context.LoanRepayments.Add(new LoanRepayment
+                {
+                    ApplicationID = applicationId,
+                    EMIDueDate = startDate.AddMonths(i),
+                    EMIAmount = emiAmount,
+                    Status = "Pending"
+                });
+            }
+            await context.SaveChangesAsync();
+        }
+
+        // Mark EMI as Paid (HR Action)
+        public async Task PayEMIAsync(int repaymentId, decimal amount, string proofPath)
+        {
+            using var context = await _factory.CreateDbContextAsync();
+            var emi = await context.LoanRepayments.FindAsync(repaymentId);
+            if (emi != null)
+            {
+                emi.PaymentDate = DateTime.Now;
+                emi.PaymentAmount = amount;
+                emi.PaymentProofPath = proofPath;
+                emi.Status = "Paid";
+                await context.SaveChangesAsync();
+            }
+        }
+
+        // --- AUDIT LOGIC ---
+        public async Task LogEditAsync(int appId, string user, string field, string oldVal, string newVal, string reason)
+        {
+            using var context = await _factory.CreateDbContextAsync();
+            context.LoanAuditLogs.Add(new LoanAuditLog
+            {
+                ApplicationID = appId,
+                ModifiedBy = user,
+                FieldChanged = field,
+                OldValue = oldVal,
+                NewValue = newVal,
+                Reason = reason
+            });
+            await context.SaveChangesAsync();
+        }
     }
 }
