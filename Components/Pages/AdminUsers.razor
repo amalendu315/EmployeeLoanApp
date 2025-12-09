@@ -1,0 +1,72 @@
+﻿@page "/admin-users"
+@using EmployeeLoanApp.Services
+@using EmployeeLoanApp.Models
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "SuperAdmin")]
+@inject AuthService AuthService
+@inject ISnackbar Snackbar
+@rendermode InteractiveServer
+@layout MainLayout
+
+<PageTitle>Admin Users | Kalyana Impex</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-8">
+    <MudText Typo="Typo.h4" Class="mb-4"><b>Manage Admins</b></MudText>
+
+    <MudCard Elevation="3" Class="pa-4 mb-8">
+        <MudText Typo="Typo.h6" Class="mb-4">Create New Admin</MudText>
+        <MudGrid>
+            <MudItem xs="4"><MudTextField @bind-Value="newUsername" Label="Username" Variant="Variant.Outlined" /></MudItem>
+            <MudItem xs="4"><MudTextField @bind-Value="newPassword" Label="Password" Variant="Variant.Outlined" InputType="InputType.Password" /></MudItem>
+            <MudItem xs="4">
+                <MudSelect @bind-Value="newRole" Label="Role" Variant="Variant.Outlined">
+                    <MudSelectItem Value="@("Admin")">Admin</MudSelectItem>
+                    <MudSelectItem Value="@("SuperAdmin")">Super Admin</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12"><MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreateUser">Create User</MudButton></MudItem>
+        </MudGrid>
+    </MudCard>
+
+    <MudTable Items="@_users" Hover="true">
+        <HeaderContent>
+            <MudTh>Username</MudTh>
+            <MudTh>Role</MudTh>
+            <MudTh>Status</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>@context.Username</MudTd>
+            <MudTd>@context.Role</MudTd>
+            <MudTd>@(context.IsActive ? "Active" : "Inactive")</MudTd>
+        </RowTemplate>
+    </MudTable>
+</MudContainer>
+
+@code {
+    string newUsername = "";
+    string newPassword = "";
+    string newRole = "Admin";
+    List<User> _users = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _users = await AuthService.GetAllAdminsAsync();
+    }
+
+    private async Task CreateUser()
+    {
+        if (string.IsNullOrWhiteSpace(newUsername) || string.IsNullOrWhiteSpace(newPassword)) return;
+
+        bool success = await AuthService.CreateUserAsync(newUsername, newPassword, newRole);
+        if (success)
+        {
+            Snackbar.Add("User Created!", Severity.Success);
+            _users = await AuthService.GetAllAdminsAsync();
+            newUsername = ""; newPassword = "";
+        }
+        else
+        {
+            Snackbar.Add("Username already exists.", Severity.Error);
+        }
+    }
+}

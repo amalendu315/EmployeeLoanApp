@@ -1,0 +1,111 @@
+﻿@page "/login"
+@using EmployeeLoanApp.Services
+@using Microsoft.AspNetCore.Components.Authorization
+@inject AuthService AuthService
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>Login | Kalyana Impex</PageTitle>
+
+<div class="d-flex justify-center align-center" style="height: 100vh; background-color: #F8FAFC;">
+    <MudCard Elevation="4" Class="pa-8 rounded-lg" Style="width: 400px;">
+        <div class="d-flex justify-center mb-6">
+            <div style="background-color: #E3F2FD; padding: 16px; border-radius: 50%;">
+                <MudIcon Icon="@Icons.Material.Filled.Lock" Color="Color.Primary" Size="Size.Large" />
+            </div>
+        </div>
+
+        <MudText Typo="Typo.h5" Align="Align.Center" Class="mb-2" Style="font-weight:700; color:#0F172A;">Welcome Back</MudText>
+        <MudText Typo="Typo.body2" Align="Align.Center" Color="Color.Secondary" Class="mb-8">Login to access the Loan CRM</MudText>
+
+        <MudTextField @bind-Value="username" Label="Username" Variant="Variant.Outlined" Class="mb-4" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Person" OnKeyDown="@EnterKey" />
+
+        <MudTextField @bind-Value="password" Label="Password" Variant="Variant.Outlined" InputType="@_passwordInputType" Adornment="Adornment.End" AdornmentIcon="@_passwordInputIcon" OnAdornmentClick="TogglePasswordVisibility" Class="mb-6" OnKeyDown="@EnterKey" />
+
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large" FullWidth="true" OnClick="HandleLogin" Disabled="@_processing" Class="py-3 rounded-lg shadow-md">
+            @if (_processing)
+            {
+                <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                <MudText Class="ms-2">Logging In...</MudText>
+            }
+            else
+            {
+                <MudText>Login</MudText>
+            }
+        </MudButton>
+
+        <div class="mt-6 text-center">
+            <MudLink Href="/loan-apply" Typo="Typo.body2" Color="Color.Primary" Target="_top" Underline="Underline.Hover">Apply for a Loan (Employee Portal)</MudLink>
+        </div>
+    </MudCard>
+</div>
+
+@code {
+    string username = "";
+    string password = "";
+    bool _processing = false;
+
+    InputType _passwordInputType = InputType.Password;
+    string _passwordInputIcon = Icons.Material.Filled.VisibilityOff;
+    bool _passwordVisibility = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // If already logged in, redirect to Dashboard immediately
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        if (state.User.Identity?.IsAuthenticated == true)
+        {
+            Nav.NavigateTo("/", forceLoad: true);
+        }
+    }
+
+    void TogglePasswordVisibility()
+    {
+        if (_passwordVisibility)
+        {
+            _passwordVisibility = false;
+            _passwordInputIcon = Icons.Material.Filled.VisibilityOff;
+            _passwordInputType = InputType.Password;
+        }
+        else
+        {
+            _passwordVisibility = true;
+            _passwordInputIcon = Icons.Material.Filled.Visibility;
+            _passwordInputType = InputType.Text;
+        }
+    }
+
+    private async Task EnterKey(KeyboardEventArgs e)
+    {
+        if (e.Code == "Enter" || e.Code == "NumpadEnter")
+        {
+            await HandleLogin();
+        }
+    }
+
+    private async Task HandleLogin()
+    {
+        if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
+        {
+            Snackbar.Add("Please enter username and password.", Severity.Warning);
+            return;
+        }
+
+        _processing = true;
+        await Task.Delay(800);
+
+        if (await AuthService.LoginAsync(username, password))
+        {
+            Snackbar.Add("Login Successful!", Severity.Success);
+
+            // CORRECT: Smooth navigation
+            Nav.NavigateTo("/");
+        }
+        else
+        {
+            Snackbar.Add("Invalid Credentials", Severity.Error);
+        }
+        _processing = false;
+    }
+}

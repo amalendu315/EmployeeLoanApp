@@ -9,6 +9,9 @@
 @inject NavigationManager Nav
 @rendermode InteractiveServer
 
+
+@layout MainLayout
+
 <PageTitle>Dashboard | Kalyana Impex Pvt. Ltd.</PageTitle>
 
 <style>
@@ -28,7 +31,7 @@
         border-bottom: 1px solid #E2E8F0;
         margin-bottom: 24px;
     }
-    /* KPI Card Styling */
+
     .kpi-card {
         background: white;
         border-radius: 12px;
@@ -71,7 +74,6 @@
         letter-spacing: 0.5px;
     }
 
-    /* Table Styling */
     .dashboard-table-container {
         background: white;
         border-radius: 16px;
@@ -85,12 +87,11 @@
         font-size: 0.75rem;
         font-weight: 700;
         text-transform: uppercase;
+        display: inline-block;
     }
 </style>
 
 <MudContainer MaxWidth="MaxWidth.Large" Class="mt-8 mb-16">
-
-    <!-- 1. HEADER SECTION -->
     <div class="d-flex justify-space-between align-center mb-8">
         <div>
             <MudText Typo="Typo.h4" Style="font-weight:700; color:#0F172A;">Overview</MudText>
@@ -98,10 +99,11 @@
         </div>
         <div class="d-flex gap-3">
             <MudButton Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.Refresh" OnClick="LoadData">Refresh</MudButton>
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" Link="/employees" StartIcon="@Icons.Material.Filled.PersonAdd" Class="px-6 rounded-lg" Href="/employees">Add Employee</MudButton>
+            <!-- FIXED: Use OnClick instead of Link -->
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PersonAdd" OnClick="@(() => Nav.NavigateTo("/employees"))" Class="px-6 rounded-lg">Add Employee</MudButton>
         </div>
     </div>
-    <MudText Typo="Typo.h5" Class="mb-4" Style="font-weight:700;">Active Applications</MudText>
+
     @if (pendingApps == null)
     {
         <div class="d-flex justify-center align-center" style="height: 400px;">
@@ -110,47 +112,37 @@
     }
     else
     {
-        <!-- 2. KPI METRICS ROW -->
         <MudGrid Class="mb-8">
             <MudItem xs="12" sm="6" md="3">
                 <div class="kpi-card">
-                    <div class="kpi-icon" style="background:#EFF6FF; color:#3B82F6;">
-                        <MudIcon Icon="@Icons.Material.Filled.PendingActions" Size="Size.Medium" />
-                    </div>
+                    <div class="kpi-icon" style="background:#EFF6FF; color:#3B82F6;"><MudIcon Icon="@Icons.Material.Filled.PendingActions" Size="Size.Medium" /></div>
                     <div class="kpi-value">@pendingApps.Count(x => x.ApplicationStatus == "Pending Approval")</div>
                     <div class="kpi-label">Pending Approval</div>
                 </div>
             </MudItem>
             <MudItem xs="12" sm="6" md="3">
                 <div class="kpi-card">
-                    <div class="kpi-icon" style="background:#FFF7ED; color:#F97316;">
-                        <MudIcon Icon="@Icons.Material.Filled.AssignmentInd" Size="Size.Medium" />
-                    </div>
+                    <div class="kpi-icon" style="background:#FFF7ED; color:#F97316;"><MudIcon Icon="@Icons.Material.Filled.AssignmentInd" Size="Size.Medium" /></div>
                     <div class="kpi-value">@pendingApps.Count(x => x.ApplicationStatus == "Pending Agreement")</div>
                     <div class="kpi-label">Waiting for Sign</div>
                 </div>
             </MudItem>
             <MudItem xs="12" sm="6" md="3">
                 <div class="kpi-card">
-                    <div class="kpi-icon" style="background:#F0FDF4; color:#22C55E;">
-                        <MudIcon Icon="@Icons.Material.Filled.Payment" Size="Size.Medium" />
-                    </div>
+                    <div class="kpi-icon" style="background:#F0FDF4; color:#22C55E;"><MudIcon Icon="@Icons.Material.Filled.Payment" Size="Size.Medium" /></div>
                     <div class="kpi-value">@pendingApps.Count(x => x.ApplicationStatus == "Pending Payment")</div>
                     <div class="kpi-label">Ready to Disburse</div>
                 </div>
             </MudItem>
             <MudItem xs="12" sm="6" md="3">
                 <div class="kpi-card">
-                    <div class="kpi-icon" style="background:#F8FAFC; color:#64748B;">
-                        <MudIcon Icon="@Icons.Material.Filled.AttachMoney" Size="Size.Medium" />
-                    </div>
+                    <div class="kpi-icon" style="background:#F8FAFC; color:#64748B;"><MudIcon Icon="@Icons.Material.Filled.AttachMoney" Size="Size.Medium" /></div>
                     <div class="kpi-value">₹@pendingApps.Sum(x => x.LoanAmountRequested).ToString("N0")</div>
                     <div class="kpi-label">Total Pipeline</div>
                 </div>
             </MudItem>
         </MudGrid>
 
-        <!-- 3. MAIN ACTION TABLE -->
         <MudText Typo="Typo.h5" Class="mb-4" Style="font-weight:700;">Active Applications</MudText>
 
         <div class="dashboard-table-container shadow-sm">
@@ -168,12 +160,7 @@
             {
                 <MudTable Items="@pendingApps" Hover="true" Striped="true" Elevation="0">
                     <HeaderContent>
-                        <MudTh>Applicant</MudTh>
-                        <MudTh>Reference</MudTh>
-                        <MudTh>Amount</MudTh>
-                        <MudTh>Date</MudTh>
-                        <MudTh>Status</MudTh>
-                        <MudTh Style="text-align:right">Action</MudTh>
+                        <MudTh>Applicant</MudTh><MudTh>Reference</MudTh><MudTh>Amount</MudTh><MudTh>Date</MudTh><MudTh>Status</MudTh><MudTh Style="text-align:right">Action</MudTh>
                     </HeaderContent>
                     <RowTemplate>
                         <MudTd>
@@ -198,10 +185,12 @@
                             }
                             else if (context.ApplicationStatus == "Pending Agreement")
                             {
+
                                 <span class="status-badge" style="background:#E0F2FE; color:#0284C7;">Agreement Sent</span>
                             }
                             else if (context.ApplicationStatus == "Pending Payment")
                             {
+
                                 <span class="status-badge" style="background:#DCFCE7; color:#16A34A;">Ready to Pay</span>
                             }
                         </MudTd>
@@ -227,7 +216,6 @@
     }
 </MudContainer>
 
-<!-- EDIT LOAN SHEET (DRAWER) -->
 <MudDrawer @bind-Open="_drawerOpen" Anchor="Anchor.End" Elevation="1" Variant="DrawerVariant.Temporary" Width="600px">
     <div class="loan-sheet-drawer">
         <div class="sheet-header">
@@ -238,32 +226,17 @@
         <MudForm @ref="_editForm">
             <MudText Typo="Typo.subtitle2" Color="Color.Primary" Class="mb-3">FINANCIALS (EDITABLE)</MudText>
             <MudGrid Spacing="2">
-                <MudItem xs="6">
-                    <MudNumericField @bind-Value="_selectedLoan.LoanAmountRequested" Label="Principal Amount" Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.CurrencyRupee" />
-                </MudItem>
-                <MudItem xs="6">
-                    <MudNumericField @bind-Value="_selectedLoan.LoanTenureMonths" Label="Tenure (Months)" Variant="Variant.Outlined" />
-                </MudItem>
-                <MudItem xs="6">
-                    <MudNumericField @bind-Value="_selectedLoan.ProposedEMIAmount" Label="Monthly EMI" Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.PieChart" />
-                </MudItem>
-                <MudItem xs="6">
-                    <MudDatePicker @bind-Date="_selectedLoan.EMIStartDate" Label="EMI Start Date" Variant="Variant.Outlined" />
-                </MudItem>
+                <MudItem xs="6"><MudNumericField @bind-Value="_selectedLoan.LoanAmountRequested" Label="Principal Amount" Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.CurrencyRupee" /></MudItem>
+                <MudItem xs="6"><MudNumericField @bind-Value="_selectedLoan.LoanTenureMonths" Label="Tenure (Months)" Variant="Variant.Outlined" /></MudItem>
+                <MudItem xs="6"><MudNumericField @bind-Value="_selectedLoan.ProposedEMIAmount" Label="Monthly EMI" Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.PieChart" /></MudItem>
+                <MudItem xs="6"><MudDatePicker @bind-Date="_selectedLoan.EMIStartDate" Label="EMI Start Date" Variant="Variant.Outlined" /></MudItem>
             </MudGrid>
-
             <MudDivider Class="my-6" />
-
             <MudText Typo="Typo.subtitle2" Color="Color.Primary" Class="mb-3">DETAILS</MudText>
             <MudGrid Spacing="2">
-                <MudItem xs="12">
-                    <MudTextField @bind-Value="_selectedLoan.PurposeOfLoan" Label="Purpose" Variant="Variant.Outlined" Lines="2" />
-                </MudItem>
-                <MudItem xs="12">
-                    <MudTextField @bind-Value="_selectedLoan.ExistingLoanDetails" Label="Existing Loan Info" Variant="Variant.Outlined" />
-                </MudItem>
+                <MudItem xs="12"><MudTextField @bind-Value="_selectedLoan.PurposeOfLoan" Label="Purpose" Variant="Variant.Outlined" Lines="2" /></MudItem>
+                <MudItem xs="12"><MudTextField @bind-Value="_selectedLoan.ExistingLoanDetails" Label="Existing Loan Info" Variant="Variant.Outlined" /></MudItem>
             </MudGrid>
-
             <div class="d-flex justify-end mt-8 gap-2">
                 <MudButton Variant="Variant.Outlined" OnClick="@(() => _drawerOpen = false)">Cancel</MudButton>
                 <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveLoanChanges" StartIcon="@Icons.Material.Filled.Save">Save Changes</MudButton>
@@ -272,12 +245,13 @@
     </div>
 </MudDrawer>
 
-
 @code {
     private List<LoanApplication>? pendingApps;
     private bool _drawerOpen = false;
     private LoanApplication _selectedLoan = new();
-    private MudForm _editForm;
+
+    // FIXED: Initialized to suppress warning CS8618
+    private MudForm _editForm = default!;
 
     protected override async Task OnInitializedAsync()
     {
@@ -288,16 +262,27 @@
     {
         try
         {
-            // Initial load state
+            // FIXED: Added null check
             if (pendingApps == null) StateHasChanged();
 
             pendingApps = await LoanService.GetPendingApplicationsAsync();
-            StateHasChanged(); // Force UI Refresh after data load
+            StateHasChanged();
         }
-        catch (Exception ex)
-        {
-            Snackbar.Add($"Error loading data: {ex.Message}", Severity.Error);
-        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    private void OpenEditSheet(LoanApplication app)
+    {
+        _selectedLoan = app;
+        _drawerOpen = true;
+    }
+
+    private async Task SaveLoanChanges()
+    {
+        await LoanService.UpdateLoanAsync(_selectedLoan, "HR_Admin");
+        Snackbar.Add("Loan details updated successfully!", Severity.Success);
+        _drawerOpen = false;
+        await LoadData();
     }
 
     private async Task OpenSanctionDialog(LoanApplication app)
@@ -306,35 +291,13 @@
         {
             { x => x.ApplicationId, app.ApplicationID },
             { x => x.RequestedAmount, app.LoanAmountRequested },
-            { x => x.ApplicantName, app.Employee?.FullName ?? "Unknown Applicant" }
+            // FIXED: Added safe navigation
+            { x => x.ApplicantName, app.Employee?.FullName ?? "Unknown" }
         };
-
         var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
-
         var dialog = await DialogService.ShowAsync<ApprovalDialog>("Sanction Loan", parameters, options);
         var result = await dialog.Result;
-
-        if (!result.Canceled)
-        {
-            Snackbar.Add("Loan Sanctioned Successfully", Severity.Success);
-            await LoadData(); // Refresh to update KPIs and Table
-        }
-    }
-
-    private void OpenEditSheet(LoanApplication app)
-    {
-        // Clone or attach the object. For simplicity, we attach.
-        // In prod, clone to avoid editing grid without saving.
-        _selectedLoan = app;
-        _drawerOpen = true;
-    }
-
-    private async Task SaveLoanChanges()
-    {
-        await LoanService.UpdateLoanAsync(_selectedLoan, "HR_Admin"); // Replace "HR_Admin" with real user
-        Snackbar.Add("Loan details updated successfully!", Severity.Success);
-        _drawerOpen = false;
-        await LoadData();
+        if (!result.Canceled) { await LoadData(); }
     }
 
     private async Task MarkPaid(int appId)

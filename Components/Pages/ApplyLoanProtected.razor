@@ -1,11 +1,7 @@
-﻿@page "/loan-apply"
+﻿@page "/apply"
 @using EmployeeLoanApp.Services
 @using EmployeeLoanApp.Models
 @rendermode InteractiveServer
-
-@* THIS ALLOWS PUBLIC ACCESS *@
-@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
-@layout PublicLayout
 @inject LoanService LoanService
 @inject ISnackbar Snackbar
 @inject NavigationManager Nav

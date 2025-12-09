@@ -10,6 +10,8 @@ namespace EmployeeLoanApp.Data
         {
         }
 
+        public DbSet<User> Users { get; set; } // NEW
+
         public DbSet<Employee> Employees { get; set; }
         public DbSet<LoanApplication> LoanApplications { get; set; }
         public DbSet<LoanApproval> LoanApprovals { get; set; }

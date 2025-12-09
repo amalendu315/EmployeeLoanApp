@@ -1,42 +1,81 @@
 ﻿@inherits LayoutComponentBase
-
+@using Microsoft.AspNetCore.Components.Authorization
+@using EmployeeLoanApp.Services
+@inject AuthService AuthService
+@inject NavigationManager Nav
 
 <MudThemeProvider Theme="_crmTheme" />
 <MudDialogProvider />
 <MudSnackbarProvider />
-<MudPopoverProvider /><!-- CRITICAL: This is the missing line causing the crash -->
+<MudPopoverProvider />
 
-<MudLayout>
-    <MudAppBar Elevation="1" Color="Color.Surface" Fixed="true" Class="border-b-2">
-        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Primary" Edge="Edge.Start" OnClick="@((e) => DrawerToggle())" />
-        <MudText Typo="Typo.h5" Color="Color.Primary" Class="ml-3" Style="font-weight:600;">Loan CRM</MudText>
-        <MudSpacer />
-        <MudAvatar Color="Color.Primary">HR</MudAvatar>
-    </MudAppBar>
+<AuthorizeView>
+    <!-- AUTHORIZED LAYOUT (Dashboard) -->
+    <Authorized>
+        <MudLayout>
+            <MudAppBar Elevation="1" Color="Color.Surface" Fixed="true" Class="border-b-2">
+                <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Primary" Edge="Edge.Start" OnClick="@((e) => DrawerToggle())" />
+                <MudText Typo="Typo.h5" Color="Color.Primary" Class="ml-3" Style="font-weight:600;">Loan CRM</MudText>
+                <MudSpacer />
 
-    <MudDrawer @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Always" Elevation="2">
-        <MudNavMenu>
-            <MudText Typo="Typo.subtitle2" Class="pa-4">MAIN MENU</MudText>
-            <MudNavLink Href="/" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard">Dashboard</MudNavLink>
-            <MudNavLink Href="/apply" Icon="@Icons.Material.Filled.NoteAdd">New Application</MudNavLink>
-            @* <MudNavLink Href="/admin" Icon="@Icons.Material.Filled.AdminPanelSettings">Approvals (HR)</MudNavLink> *@
-            <MudNavLink Href="/employees" Icon="@Icons.Material.Filled.People">Manage Employees</MudNavLink>
-            <MudNavLink Href="/reports" Icon="@Icons.Material.Filled.Assessment">Reports</MudNavLink>
-            <MudText Typo="Typo.subtitle2" Class="pa-4 mt-4">SETTINGS</MudText>
-            <MudNavLink Href="/masters" Icon="@Icons.Material.Filled.Settings">Master Data</MudNavLink>
-        </MudNavMenu>
-    </MudDrawer>
+                <!-- User Profile & Logout -->
+                <div class="d-flex align-center gap-4">
+                    <MudText Color="Color.Secondary" Typo="Typo.body2"><b>@context.User.Identity?.Name</b></MudText>
+                    <MudAvatar Color="Color.Primary" Variant="Variant.Filled">
+                        @context.User.Identity?.Name?.Substring(0, 1).ToUpper()
+                    </MudAvatar>
+                    <MudTooltip Text="Logout">
+                        <MudIconButton Icon="@Icons.Material.Filled.Logout" Color="Color.Error" OnClick="HandleLogout" />
+                    </MudTooltip>
+                </div>
+            </MudAppBar>
 
-    <MudMainContent Class="mud-background-gray">
-        <MudContainer MaxWidth="MaxWidth.Large" Class="mt-8">
-            @Body
-        </MudContainer>
-    </MudMainContent>
-</MudLayout>
+            <MudDrawer @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Always" Elevation="2">
+                <MudNavMenu>
+                    <MudText Typo="Typo.subtitle2" Class="pa-4">MAIN MENU</MudText>
+                    <MudNavLink Href="/" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard">Dashboard</MudNavLink>
+                    <MudNavLink Href="/apply" Icon="@Icons.Material.Filled.NoteAdd">New Application</MudNavLink>
+                    @* <MudNavLink Href="/admin" Icon="@Icons.Material.Filled.AdminPanelSettings">Approvals (HR)</MudNavLink> *@
+                    <MudNavLink Href="/employees" Icon="@Icons.Material.Filled.People">Team Directory</MudNavLink>
+
+                    <MudText Typo="Typo.subtitle2" Class="pa-4 mt-4">REPORTS & SETTINGS</MudText>
+                    <MudNavLink Href="/reports" Icon="@Icons.Material.Filled.Assessment">Reports</MudNavLink>
+                    <MudNavLink Href="/masters" Icon="@Icons.Material.Filled.Settings">Master Data</MudNavLink>
+
+                    @if (context.User.IsInRole("SuperAdmin"))
+                    {
+                        <MudNavLink Href="/admin-users" Icon="@Icons.Material.Filled.SupervisedUserCircle">Manage Admins</MudNavLink>
+                    }
+                </MudNavMenu>
+            </MudDrawer>
+
+            <MudMainContent Class="mud-background-gray">
+                <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-8">
+                    @Body
+                </MudContainer>
+            </MudMainContent>
+        </MudLayout>
+    </Authorized>
+
+    <!-- NOT AUTHORIZED LAYOUT (Login Screen) -->
+    <NotAuthorized>
+        <div class="d-flex justify-center align-center" style="min-height: 100vh; background-color: #F8FAFC;">
+            <!-- Renders the Login page directly -->
+            <EmployeeLoanApp.Components.Pages.Login />
+        </div>
+    </NotAuthorized>
+</AuthorizeView>
 
 @code {
     bool _drawerOpen = true;
     void DrawerToggle() => _drawerOpen = !_drawerOpen;
+
+    private async Task HandleLogout()
+    {
+        // Change AuthService.Logout() to this:
+        await AuthService.LogoutAsync();
+        Nav.NavigateTo("/", forceLoad: true);
+    }
 
     private MudTheme _crmTheme = new MudTheme()
     {

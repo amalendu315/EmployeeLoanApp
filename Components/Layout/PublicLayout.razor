@@ -1,0 +1,33 @@
+﻿@inherits LayoutComponentBase
+
+<MudThemeProvider Theme="_crmTheme" />
+<MudDialogProvider />
+<MudSnackbarProvider />
+<MudPopoverProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="1" Color="Color.Primary">
+        <MudText Typo="Typo.h5" Class="ml-3" Style="font-weight:700;">Loan Portal</MudText>
+        <MudSpacer />
+        @* <MudButton Variant="Variant.Text" Color="Color.Surface" Link="/login">Admin Login</MudButton> *@
+    </MudAppBar>
+
+    <MudMainContent Class="mud-background-gray">
+        <MudContainer MaxWidth="MaxWidth.Medium" Class="mt-8 mb-16">
+            @Body
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    private MudTheme _crmTheme = new MudTheme()
+    {
+        PaletteLight = new PaletteLight()
+        {
+            Primary = "#6EC1E4",
+            Secondary = "#54595F",
+            Background = "#F3F5F7",
+            AppbarBackground = "#6EC1E4"
+        }
+    };
+}

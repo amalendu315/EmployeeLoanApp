@@ -28,6 +28,27 @@ namespace EmployeeLoanApp.Models
         public bool IsActive { get; set; } = true;
     }
 
+    // --- NEW: USER AUTH MODEL ---
+    public class User
+    {
+        [Key]
+        public int UserID { get; set; }
+
+        [Required]
+        public string Username { get; set; } = "";
+
+        [Required]
+        public string PasswordHash { get; set; } = "";
+
+        [Required]
+        public string Role { get; set; } = "Employee"; // SuperAdmin, Admin, Employee
+
+        public int? EmployeeID { get; set; }
+
+        public bool IsActive { get; set; } = true;
+        public DateTime CreatedDate { get; set; } = DateTime.Now;
+    }
+
     public class Employee
     {
         [Key]
