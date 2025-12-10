@@ -3,35 +3,32 @@
 @using EmployeeLoanApp.Models
 @using System.IO
 @inject LoanService LoanService
+@inject EmailService EmailService
 @inject IWebHostEnvironment Env
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 @inject NavigationManager Nav
 @rendermode InteractiveServer
 
-
-@layout MainLayout
-
 <PageTitle>Dashboard | Kalyana Impex Pvt. Ltd.</PageTitle>
 
 <style>
     .loan-sheet-drawer {
-        width: 600px;
+        width: 800px;
         padding: 24px;
         background: #FFFFFF;
         height: 100%;
         overflow-y: auto;
     }
 
-    .sheet-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding-bottom: 16px;
-        border-bottom: 1px solid #E2E8F0;
-        margin-bottom: 24px;
+    .agreement-preview {
+        border: 1px solid #E2E8F0;
+        padding: 40px;
+        background: white;
+        min-height: 600px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
     }
-
+    /* KPI Card Styling */
     .kpi-card {
         background: white;
         border-radius: 12px;
@@ -73,7 +70,7 @@
         text-transform: uppercase;
         letter-spacing: 0.5px;
     }
-
+    /* Table Styling */
     .dashboard-table-container {
         background: white;
         border-radius: 16px;
@@ -99,7 +96,6 @@
         </div>
         <div class="d-flex gap-3">
             <MudButton Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.Refresh" OnClick="LoadData">Refresh</MudButton>
-            <!-- FIXED: Use OnClick instead of Link -->
             <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PersonAdd" OnClick="@(() => Nav.NavigateTo("/employees"))" Class="px-6 rounded-lg">Add Employee</MudButton>
         </div>
     </div>
@@ -160,7 +156,7 @@
             {
                 <MudTable Items="@pendingApps" Hover="true" Striped="true" Elevation="0">
                     <HeaderContent>
-                        <MudTh>Applicant</MudTh><MudTh>Reference</MudTh><MudTh>Amount</MudTh><MudTh>Date</MudTh><MudTh>Status</MudTh><MudTh Style="text-align:right">Action</MudTh>
+                        <MudTh>Applicant</MudTh><MudTh>Ref</MudTh><MudTh>Amount</MudTh><MudTh>Date</MudTh><MudTh>Status</MudTh><MudTh Style="text-align:right">Action</MudTh>
                     </HeaderContent>
                     <RowTemplate>
                         <MudTd>
@@ -186,7 +182,12 @@
                             else if (context.ApplicationStatus == "Pending Agreement")
                             {
 
-                                <span class="status-badge" style="background:#E0F2FE; color:#0284C7;">Agreement Sent</span>
+                                <span class="status-badge" style="background:#E0F2FE; color:#0284C7;">Agreement Ready</span>
+                            }
+                            else if (context.ApplicationStatus == "Awaiting Sign")
+                            {
+
+                                <span class="status-badge" style="background:#F3E8FF; color:#7E22CE;">Awaiting Sign</span>
                             }
                             else if (context.ApplicationStatus == "Pending Payment")
                             {
@@ -200,9 +201,21 @@
                                 <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Default" Size="Size.Small" OnClick="@(() => OpenEditSheet(context))" Class="mr-2" />
                                 <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" OnClick="@(() => OpenSanctionDialog(context))">Sanction</MudButton>
                             }
+                            else if (context.ApplicationStatus == "Pending Agreement")
+                            {
+                                <MudButton Variant="Variant.Outlined" Color="Color.Info" Size="Size.Small" OnClick="@(() => OpenAgreementSheet(context))">View Agreement</MudButton>
+                            }
+                            else if (context.ApplicationStatus == "Awaiting Sign")
+                            {
+                                <MudFileUpload T="IBrowserFile" FilesChanged="@(e => UploadSignedAgreement(e, context.ApplicationID))">
+                                    <ActivatorContent>
+                                        <MudButton Variant="Variant.Filled" Color="Color.Secondary" Size="Size.Small" StartIcon="@Icons.Material.Filled.UploadFile">Upload Signed</MudButton>
+                                    </ActivatorContent>
+                                </MudFileUpload>
+                            }
                             else if (context.ApplicationStatus == "Pending Payment")
                             {
-                                <MudButton Variant="Variant.Filled" Color="Color.Success" Size="Size.Small" OnClick="@(() => MarkPaid(context.ApplicationID))">Disburse</MudButton>
+                                <MudButton Variant="Variant.Filled" Color="Color.Success" Size="Size.Small" OnClick="@(() => OpenPaymentDialog(context))">Disburse</MudButton>
                             }
                             else
                             {
@@ -216,6 +229,55 @@
     }
 </MudContainer>
 
+<!-- 1. AGREEMENT PREVIEW SHEET -->
+<MudDrawer @bind-Open="_agreementDrawerOpen" Anchor="Anchor.End" Elevation="1" Variant="DrawerVariant.Temporary" Width="900px">
+    <div class="loan-sheet-drawer">
+        <div class="sheet-header">
+            <div>
+                <MudText Typo="Typo.h5"><b>Review Agreement</b></MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">Preview the document before sending to employee.</MudText>
+            </div>
+            <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="@(() => _agreementDrawerOpen = false)" />
+        </div>
+
+        <!-- HTML Preview -->
+        <div class="agreement-preview mb-6">
+            @((MarkupString)_agreementHtml)
+        </div>
+
+        <div class="d-flex justify-end gap-3 p-4" style="border-top:1px solid #eee; position:sticky; bottom:0; background:white;">
+            <MudButton Variant="Variant.Outlined" OnClick="@(() => _agreementDrawerOpen = false)">Close</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SendAgreementEmail" StartIcon="@Icons.Material.Filled.Send" Size="Size.Large">Send Agreement to Employee</MudButton>
+        </div>
+    </div>
+</MudDrawer>
+
+<!-- 2. PAYMENT PROOF DIALOG -->
+<MudDialog @bind-IsVisible="_showPaymentDialog">
+    <DialogContent>
+        <MudText Typo="Typo.h6" Class="mb-4">Confirm Disbursement</MudText>
+        <MudGrid>
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_paymentRemarks" Label="Payment Remarks / Reference No" Variant="Variant.Outlined" Lines="2" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudFileUpload T="IBrowserFile" FilesChanged="UploadPaymentProof">
+                    <ActivatorContent>
+                        <MudButton Variant="Variant.Outlined" FullWidth="true" StartIcon="@Icons.Material.Filled.CloudUpload">
+                            @(_paymentProofName ?? "Upload Payment Receipt")
+                        </MudButton>
+                    </ActivatorContent>
+                </MudFileUpload>
+            </MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showPaymentDialog = false)">Cancel</MudButton>
+        <MudButton Color="Color.Success" Variant="Variant.Filled" OnClick="SubmitDisbursement">Confirm Payment</MudButton>
+    </DialogActions>
+</MudDialog>
+
+<!-- 3. EDIT LOAN SHEET -->
 <MudDrawer @bind-Open="_drawerOpen" Anchor="Anchor.End" Elevation="1" Variant="DrawerVariant.Temporary" Width="600px">
     <div class="loan-sheet-drawer">
         <div class="sheet-header">
@@ -247,30 +309,126 @@
 
 @code {
     private List<LoanApplication>? pendingApps;
+
+    // Agreement Drawer State
+    private bool _agreementDrawerOpen = false;
+    private string _agreementHtml = "";
+    private LoanApplication _selectedApp = new();
+    private LoanApproval _selectedApproval = new();
+
+    // Payment Dialog State
+    private bool _showPaymentDialog = false;
+    private string _paymentRemarks = "";
+    private string? _paymentProofName;
+    private string? _paymentProofPath;
+
+    // Edit Drawer State
     private bool _drawerOpen = false;
     private LoanApplication _selectedLoan = new();
-
-    // FIXED: Initialized to suppress warning CS8618
     private MudForm _editForm = default!;
 
-    protected override async Task OnInitializedAsync()
-    {
-        await LoadData();
-    }
+    protected override async Task OnInitializedAsync() => await LoadData();
 
     private async Task LoadData()
     {
         try
         {
-            // FIXED: Added null check
             if (pendingApps == null) StateHasChanged();
-
             pendingApps = await LoanService.GetPendingApplicationsAsync();
             StateHasChanged();
         }
         catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
     }
 
+    private Color GetStatusColor(string? status) => status switch
+    {
+        "Pending Approval" => Color.Warning,
+        "Pending Agreement" => Color.Info,
+        "Awaiting Sign" => Color.Secondary,
+        "Pending Payment" => Color.Tertiary,
+        "Active" => Color.Success,
+        _ => Color.Default
+    };
+
+    // --- AGREEMENT FLOW ---
+    private async Task OpenAgreementSheet(LoanApplication app)
+    {
+        _selectedApp = app;
+        // Fetch approval details to generate HTML
+        var approval = await LoanService.GetApprovalDetailsAsync(app.ApplicationID);
+
+        if (app.Employee != null)
+        {
+            // Generate HTML locally for preview
+            _agreementHtml = EmailService.GenerateAgreementHtml(app.Employee, app, approval);
+            _agreementDrawerOpen = true;
+        }
+    }
+
+    private async Task SendAgreementEmail()
+    {
+        // 1. Call Service to Email & Update Status
+        await LoanService.SendAgreementToEmployeeAsync(_selectedApp.ApplicationID);
+
+        Snackbar.Add("Agreement Sent to Employee!", Severity.Success);
+        _agreementDrawerOpen = false;
+        await LoadData(); // Refresh UI to show 'Awaiting Sign'
+    }
+
+    // --- UPLOAD SIGNED DOC ---
+    private async Task UploadSignedAgreement(IBrowserFile file, int appId)
+    {
+        var folder = Path.Combine(Env.WebRootPath, "uploads", "agreements");
+        Directory.CreateDirectory(folder);
+        var path = Path.Combine(folder, $"Signed_{appId}_{file.Name}");
+
+        using var fs = new FileStream(path, FileMode.Create);
+        await file.OpenReadStream(5000000).CopyToAsync(fs);
+
+        await LoanService.UploadSignedAgreementAsync(appId, path);
+        Snackbar.Add("Document Uploaded. Ready for Disbursement.", Severity.Success);
+        await LoadData();
+    }
+
+    // --- PAYMENT LOGIC ---
+    private void OpenPaymentDialog(LoanApplication app)
+    {
+        _selectedApp = app;
+        _paymentProofName = null;
+        _paymentRemarks = "";
+        _showPaymentDialog = true;
+    }
+
+    private async Task UploadPaymentProof(IBrowserFile file)
+    {
+        _paymentProofName = file.Name;
+        var path = Path.Combine(Env.WebRootPath, "uploads", "payments", $"Pay_{Guid.NewGuid()}_{file.Name}");
+        // In real app, save file stream here
+        _paymentProofPath = path;
+    }
+
+    private async Task SubmitDisbursement()
+    {
+        await LoanService.DisburseLoanAsync(_selectedApp.ApplicationID);
+        _showPaymentDialog = false;
+        Snackbar.Add("Loan Activated!", Severity.Success);
+        await LoadData();
+    }
+
+    // --- SANCTION DIALOG ---
+    private async Task OpenSanctionDialog(LoanApplication app)
+    {
+        var parameters = new DialogParameters<ApprovalDialog> {
+            { x => x.ApplicationId, app.ApplicationID },
+            { x => x.RequestedAmount, app.LoanAmountRequested },
+            { x => x.ApplicantName, app.Employee?.FullName ?? "Unknown" }
+        };
+        var dialog = await DialogService.ShowAsync<ApprovalDialog>("Sanction", parameters);
+        var result = await dialog.Result;
+        if (!result.Canceled) await LoadData();
+    }
+
+    // --- EDIT LOGIC ---
     private void OpenEditSheet(LoanApplication app)
     {
         _selectedLoan = app;
@@ -280,30 +438,8 @@
     private async Task SaveLoanChanges()
     {
         await LoanService.UpdateLoanAsync(_selectedLoan, "HR_Admin");
-        Snackbar.Add("Loan details updated successfully!", Severity.Success);
+        Snackbar.Add("Updated!", Severity.Success);
         _drawerOpen = false;
         await LoadData();
-    }
-
-    private async Task OpenSanctionDialog(LoanApplication app)
-    {
-        var parameters = new DialogParameters<ApprovalDialog>
-        {
-            { x => x.ApplicationId, app.ApplicationID },
-            { x => x.RequestedAmount, app.LoanAmountRequested },
-            // FIXED: Added safe navigation
-            { x => x.ApplicantName, app.Employee?.FullName ?? "Unknown" }
-        };
-        var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
-        var dialog = await DialogService.ShowAsync<ApprovalDialog>("Sanction Loan", parameters, options);
-        var result = await dialog.Result;
-        if (!result.Canceled) { await LoadData(); }
-    }
-
-    private async Task MarkPaid(int appId)
-    {
-        await LoanService.DisburseLoanAsync(appId);
-        await LoadData();
-        Snackbar.Add("Loan Disbursed Successfully!", Severity.Success);
     }
 }

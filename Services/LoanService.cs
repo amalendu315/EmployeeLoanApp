@@ -7,12 +7,12 @@ namespace EmployeeLoanApp.Services
     public class LoanService
     {
         private readonly IDbContextFactory<EmployeeLoanContext> _factory;
-        private readonly DigiGoService _digiGoService; // Switched to DigiGo
+        private readonly EmailService _emailService; // Switched to DigiGo
 
-        public LoanService(IDbContextFactory<EmployeeLoanContext> factory, DigiGoService digiGoService)
+        public LoanService(IDbContextFactory<EmployeeLoanContext> factory, EmailService emailService)
         {
             _factory = factory;
-            _digiGoService = digiGoService;
+            _emailService = emailService;
         }
 
         // --- MASTER DATA METHODS --- (Kept as is)
@@ -173,34 +173,19 @@ namespace EmployeeLoanApp.Services
                 .ToListAsync();
         }
 
-        // STEP 1: HR Sanctions -> Trigger DigiGo -> Status: Pending Agreement
+        // STEP 1: HR Sanctions -> Status becomes "Pending Agreement" (NO EMAIL YET)
         public async Task ApproveLoanAsync(LoanApproval approval)
         {
             using var context = await _factory.CreateDbContextAsync();
             using var transaction = await context.Database.BeginTransactionAsync();
             try
             {
-                // 1. Save Approval
                 context.LoanApprovals.Add(approval);
-
-                // 2. Update Status
-                var application = await context.LoanApplications
-                    .Include(a => a.Employee)
-                    .FirstOrDefaultAsync(a => a.ApplicationID == approval.ApplicationID);
-
+                var application = await context.LoanApplications.FindAsync(approval.ApplicationID);
                 if (application != null)
                 {
                     application.ApplicationStatus = "Pending Agreement";
-
-                    // 3. Send to DigiGo for Signature (API Call)
-                    if (application.Employee != null)
-                    {
-                        // This sends the prefilled agreement to the user's email/phone via DigiGo
-                        // The Webhook (WebhookController) will listen for the 'signed' event
-                        var requestId = await _digiGoService.SendAgreementForSignatureAsync(application.Employee, application, approval);
-                    }
                 }
-
                 await context.SaveChangesAsync();
                 await transaction.CommitAsync();
             }
@@ -211,18 +196,55 @@ namespace EmployeeLoanApp.Services
             }
         }
 
-        // STEP 2: Webhook calls this when DigiGo confirms signing
-        public async Task ConfirmAgreementSignedAsync(int applicationId)
+        // STEP 2: HR Clicks "Send Agreement" -> Sends Email -> Status: "Awaiting Sign"
+        public async Task SendAgreementToEmployeeAsync(int applicationId)
+        {
+            using var context = await _factory.CreateDbContextAsync();
+            var app = await context.LoanApplications
+                .Include(a => a.Employee)
+                .FirstOrDefaultAsync(a => a.ApplicationID == applicationId);
+
+            // Fetch the approval details needed for the agreement
+            var approval = await context.LoanApprovals
+                .OrderByDescending(a => a.ApprovalDate)
+                .FirstOrDefaultAsync(a => a.ApplicationID == applicationId);
+
+            if (app != null && app.Employee != null && approval != null)
+            {
+                // Send Email
+                await _emailService.SendAgreementMailAsync(app.Employee, app, approval);
+
+                // Update Status
+                app.ApplicationStatus = "Awaiting Sign";
+                await context.SaveChangesAsync();
+            }
+        }
+        // NEW: Helper to update status directly
+        public async Task UpdateStatusAsync(int applicationId, string status)
         {
             using var context = await _factory.CreateDbContextAsync();
             var app = await context.LoanApplications.FindAsync(applicationId);
             if (app != null)
             {
-                app.ApplicationStatus = "Pending Payment"; // Auto-update status
+                app.ApplicationStatus = status;
                 await context.SaveChangesAsync();
             }
         }
 
+        // STEP 3: HR Uploads Signed Doc -> Status: Pending Payment
+        public async Task UploadSignedAgreementAsync(int applicationId, string filePath)
+        {
+            using var context = await _factory.CreateDbContextAsync();
+            var app = await context.LoanApplications.FindAsync(applicationId);
+            if (app != null)
+            {
+                app.SignedAgreementPath = filePath;
+                app.ApplicationStatus = "Pending Payment";
+                await context.SaveChangesAsync();
+            }
+        }
+
+        // STEP 4: HR Disburses -> Status: Active
         public async Task DisburseLoanAsync(int applicationId)
         {
             using var context = await _factory.CreateDbContextAsync();
@@ -230,6 +252,21 @@ namespace EmployeeLoanApp.Services
             if (app != null)
             {
                 app.ApplicationStatus = "Active";
+
+                // Generate Schedule logic (kept from previous turn)
+                DateTime startDate = app.EMIStartDate ?? DateTime.Now.AddMonths(1);
+                decimal emi = app.ProposedEMIAmount ?? 0;
+                for (int i = 0; i < app.LoanTenureMonths; i++)
+                {
+                    context.LoanRepayments.Add(new LoanRepayment
+                    {
+                        ApplicationID = applicationId,
+                        EMIDueDate = startDate.AddMonths(i),
+                        EMIAmount = emi,
+                        Status = "Pending"
+                    });
+                }
+
                 await context.SaveChangesAsync();
             }
         }
@@ -361,6 +398,57 @@ namespace EmployeeLoanApp.Services
                 Reason = reason
             });
             await context.SaveChangesAsync();
+        }
+
+        public async Task<LoanApproval> GetApprovalDetailsAsync(int applicationId)
+        {
+            using var context = await _factory.CreateDbContextAsync();
+            return await context.LoanApprovals
+                .OrderByDescending(a => a.ApprovalDate)
+                .FirstOrDefaultAsync(a => a.ApplicationID == applicationId) ?? new LoanApproval();
+        }
+
+        //public async Task UpdateStatusAsync(int applicationId, string status)
+        //{
+        //    using var context = await _factory.CreateDbContextAsync();
+        //    var app = await context.LoanApplications.FindAsync(applicationId);
+        //    if (app != null)
+        //    {
+        //        app.ApplicationStatus = status;
+        //        await context.SaveChangesAsync();
+        //    }
+        //}
+
+        //public async Task<LoanApproval> GetApprovalDetailsAsync(int applicationId)
+        //{
+        //    using var context = await _factory.CreateDbContextAsync();
+        //    return await context.LoanApprovals
+        //        .OrderByDescending(a => a.ApprovalDate)
+        //        .FirstOrDefaultAsync(a => a.ApplicationID == applicationId) ?? new LoanApproval();
+        //}
+
+        //public async Task UpdateStatusAsync(int applicationId, string status)
+        //{
+        //    using var context = await _factory.CreateDbContextAsync();
+        //    var app = await context.LoanApplications.FindAsync(applicationId);
+        //    if (app != null)
+        //    {
+        //        app.ApplicationStatus = status;
+        //        await context.SaveChangesAsync();
+        //    }
+        //}
+
+        // --- NEW: Missing Method for Webhook ---
+        public async Task ConfirmAgreementSignedAsync(int applicationId)
+        {
+            using var context = await _factory.CreateDbContextAsync();
+            var app = await context.LoanApplications.FindAsync(applicationId);
+            if (app != null)
+            {
+                // Status moves from "Awaiting Sign" (or similar) to "Pending Payment"
+                app.ApplicationStatus = "Pending Payment";
+                await context.SaveChangesAsync();
+            }
         }
     }
 }
