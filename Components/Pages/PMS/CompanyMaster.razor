@@ -1,0 +1,176 @@
+﻿@page "/pms/masters/companies"
+@using EmployeeLoanApp.Components.Layout
+@using EmployeeLoanApp.Models
+@using EmployeeLoanApp.Data
+@using Microsoft.EntityFrameworkCore
+@layout PMSLayout
+@inject IDbContextFactory<EmployeeLoanContext> DbFactory
+@inject ISnackbar Snackbar
+
+<PageTitle>PMS | Company Master</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-8 mb-8">
+    <div class="d-flex justify-space-between align-center mb-6">
+        <div>
+            <MudText Typo="Typo.h4" Color="Color.Primary" Style="font-weight:700;">Company Master</MudText>
+            <MudText Typo="Typo.body1" Color="Color.Secondary">Manage shared company records for properties & loans.</MudText>
+        </div>
+    </div>
+
+    <MudGrid>
+        <!-- ADD NEW COMPANY CARD -->
+        <MudItem xs="12" md="4">
+            <MudCard Elevation="2" Class="pa-4 rounded-lg">
+                <MudText Typo="Typo.h6" Class="mb-4">Add New Company</MudText>
+                <MudForm @ref="_form" @bind-IsValid="_success">
+                    <MudTextField @bind-Value="_newCompanyName" Label="Company Name"
+                                  Variant="Variant.Outlined" Margin="Margin.Dense" Required="true"
+                                  Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Business" />
+
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-4" FullWidth="true"
+                               OnClick="AddCompany" Disabled="@(_processing || !_success)">
+                        @if (_processing)
+                        {
+                            <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                            <MudText Class="ms-2">Saving...</MudText>
+                        }
+                        else
+                        {
+                            <MudText>Add Company</MudText>
+                        }
+                    </MudButton>
+                </MudForm>
+            </MudCard>
+        </MudItem>
+
+        <!-- COMPANY LIST -->
+        <MudItem xs="12" md="8">
+            <MudTable Items="@_companies" Hover="true" Striped="true" Elevation="2" Class="rounded-lg" Filter="new Func<Company, bool>(FilterFunc)">
+                <ToolBarContent>
+                    <MudText Typo="Typo.h6">Existing Companies</MudText>
+                    <MudSpacer />
+                    <MudTextField @bind-Value="_searchString" Placeholder="Search..." Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0"></MudTextField>
+                </ToolBarContent>
+                <HeaderContent>
+                    <MudTh>ID</MudTh>
+                    <MudTh>Company Name</MudTh>
+                    <MudTh Style="text-align:right">Action</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="ID">@context.CompanyID</MudTd>
+                    <MudTd DataLabel="Name"><b>@context.CompanyName</b></MudTd>
+                    <MudTd DataLabel="Action" Style="text-align:right">
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => DeleteCompany(context))" />
+                    </MudTd>
+                </RowTemplate>
+                <PagerContent>
+                    <MudTablePager />
+                </PagerContent>
+            </MudTable>
+        </MudItem>
+    </MudGrid>
+</MudContainer>
+
+@code {
+    private List<Company> _companies = new();
+    private string _newCompanyName = "";
+    private string _searchString = "";
+    private bool _processing = false;
+    private bool _success = false;
+    private MudForm _form;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // Assuming your Company model uses 'Id' and 'Name' based on previous context,
+        // OR 'CompanyID' and 'CompanyName' based on your LoanService code.
+        // I will use the standard properties from your earlier Entity definitions.
+        // If your Loan App uses different names, I will adapt.
+        // Based on your LoanService snippet: CompanyID, CompanyName, IsActive
+
+        // Wait! In your earlier Property Entity code you used: public virtual Company Purchaser { get; set; }
+        // And standard EF conventions.
+        // Let's stick to the properties typically used in the LoanService you pasted:
+        // context.Companies.Where(x => x.IsActive)
+
+        _companies = await context.Companies.AsNoTracking().Where(c => c.IsActive).OrderByDescending(c => c.CompanyID).ToListAsync();
+    }
+
+    private async Task AddCompany()
+    {
+        await _form.Validate();
+        if (!_success) return;
+
+        _processing = true;
+        try
+        {
+            using var context = DbFactory.CreateDbContext();
+
+            // Check for duplicates
+            if (await context.Companies.AnyAsync(c => c.CompanyName == _newCompanyName && c.IsActive))
+            {
+                Snackbar.Add("Company already exists!", Severity.Warning);
+                return;
+            }
+
+            var newComp = new Company
+            {
+                CompanyName = _newCompanyName, // Or CompanyName if that's the prop
+                IsActive = true
+            };
+
+            context.Companies.Add(newComp);
+            await context.SaveChangesAsync();
+
+            _newCompanyName = "";
+            Snackbar.Add("Company Added Successfully", Severity.Success);
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _processing = false;
+        }
+    }
+
+    private async Task DeleteCompany(Company company)
+    {
+        // Check if used in Properties first (FK Constraint check)
+        using var context = DbFactory.CreateDbContext();
+
+        bool isUsed = await context.Properties.AnyAsync(p => p.PurchaserId == company.CompanyID || p.UsedByCompanyId == company.CompanyID);
+        if (isUsed)
+        {
+            Snackbar.Add("Cannot delete: This company is linked to existing properties.", Severity.Error);
+            return;
+        }
+
+        // Soft Delete (Set IsActive = false) preferred, or Hard Delete
+        var item = await context.Companies.FindAsync(company.CompanyID);
+        if (item != null)
+        {
+            // Hard delete logic from your service:
+            context.Companies.Remove(item);
+            // OR Soft Delete: item.IsActive = false;
+
+            await context.SaveChangesAsync();
+            Snackbar.Add("Company Deleted", Severity.Success);
+            await LoadData();
+        }
+    }
+
+    private bool FilterFunc(Company element)
+    {
+        if (string.IsNullOrWhiteSpace(_searchString)) return true;
+        if (element.CompanyName.Contains(_searchString, StringComparison.OrdinalIgnoreCase)) return true;
+        return false;
+    }
+}

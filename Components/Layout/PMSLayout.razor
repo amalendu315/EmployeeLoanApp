@@ -31,7 +31,7 @@
                 <MudDrawer @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Always" Elevation="2">
                     <MudNavMenu>
                         <MudNavLink Href="/pms" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard">Dashboard</MudNavLink>
-
+                        <MudNavLink Href="/pms/masters/companies" Icon="@Icons.Material.Filled.Business">Company Master</MudNavLink>
                         <MudNavGroup Title="Manage Properties" Icon="@Icons.Material.Filled.Domain" Expanded="true">
                             <MudNavLink Href="/pms/properties/owned" Icon="@Icons.Material.Filled.Home">Owned Properties</MudNavLink>
                             <MudNavLink Href="/pms/properties/leased" Icon="@Icons.Material.Filled.Business">Leased Properties</MudNavLink>
