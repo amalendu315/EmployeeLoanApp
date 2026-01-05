@@ -1,4 +1,4 @@
-﻿@page "/login"
+﻿@page "/loan/login"
 @using EmployeeLoanApp.Services
 @using Microsoft.AspNetCore.Components.Authorization
 @inject AuthService AuthService
@@ -34,10 +34,6 @@
                 <MudText>Login</MudText>
             }
         </MudButton>
-
-        <div class="mt-6 text-center">
-            <MudLink Href="/loan-apply" Typo="Typo.body2" Color="Color.Primary" Target="_top" Underline="Underline.Hover">Apply for a Loan (Employee Portal)</MudLink>
-        </div>
     </MudCard>
 </div>
 
@@ -56,7 +52,7 @@
         var state = await AuthStateProvider.GetAuthenticationStateAsync();
         if (state.User.Identity?.IsAuthenticated == true)
         {
-            Nav.NavigateTo("/", forceLoad: true);
+            Nav.NavigateTo("/loan", forceLoad: true);
         }
     }
 
@@ -100,7 +96,7 @@
             Snackbar.Add("Login Successful!", Severity.Success);
 
             // CORRECT: Smooth navigation
-            Nav.NavigateTo("/");
+            Nav.NavigateTo("/loan");
         }
         else
         {

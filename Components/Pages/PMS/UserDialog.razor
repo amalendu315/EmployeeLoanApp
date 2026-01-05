@@ -1,0 +1,291 @@
+﻿@using EmployeeLoanApp.Services.PMS
+@using EmployeeLoanApp.Models.PMS
+@using EmployeeLoanApp.Models
+@using EmployeeLoanApp.Data
+@using Microsoft.EntityFrameworkCore
+@using System.Text.Json
+@inject PMSAuthService AuthService
+@inject IDbContextFactory<EmployeeLoanContext> DbFactory
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudContainer Style="max-height: 70vh; overflow-y: auto; padding-right: 10px;">
+            <MudForm @bind-IsValid="_success">
+
+                <!-- 1. USER CREDENTIALS -->
+                <MudText Typo="Typo.subtitle2" Color="Color.Primary" Class="mb-2"><b>1. User Credentials</b></MudText>
+                <MudGrid Class="mb-4">
+                    <MudItem xs="12" sm="6">
+                        <MudTextField @bind-Value="_fullName" Label="Full Name" Required="true" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField @bind-Value="_password" Label="Password" InputType="InputType.Password" Required="true" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudItem>
+                    <MudItem xs="12">
+                        <MudSwitch @bind-Value="_isSuperAdmin" Label="Super Admin (Full Access)" Color="Color.Error" />
+                    </MudItem>
+                </MudGrid>
+
+                @if (!_isSuperAdmin)
+                {
+                    <MudDivider Class="my-4" />
+
+                    <!-- 2. ACCESS CONFIGURATION -->
+                    <MudText Typo="Typo.subtitle2" Color="Color.Primary" Class="mb-2"><b>2. Access Configuration</b></MudText>
+                    <MudPaper Class="pa-4 mb-4" Outlined="true" Style="background-color: #F8FAFC;">
+
+                        <!-- Global Toggles -->
+                        <div class="d-flex gap-4 mb-4">
+                            <MudSwitch T="bool" Value="_config.ViewAllCompanies" ValueChanged="OnViewAllCompaniesChanged" Label="View All Companies" Color="Color.Info" />
+                            <MudSwitch @bind-Value="_config.ViewAllProperties" Label="View All Properties" Color="Color.Info" Disabled="@(!_config.ViewAllCompanies)" />
+                        </div>
+
+                        <!-- Company Selection -->
+                        @if (!_config.ViewAllCompanies)
+                        {
+                            <MudSelect T="int" Label="Allowed Companies" MultiSelection="true"
+                                       @bind-SelectedValues="SelectedCompanyIds"
+                                       Variant="Variant.Outlined" AnchorOrigin="Origin.BottomCenter" Class="mb-4">
+                                @foreach (var comp in _allCompanies)
+                                {
+                                    <MudSelectItem T="int" Value="@comp.CompanyID">@comp.CompanyName</MudSelectItem>
+                                }
+                            </MudSelect>
+                        }
+
+                        <!-- Property Selection (Dependent on Companies) -->
+                        @if (!_config.ViewAllProperties && (_config.ViewAllCompanies || _internalSelectedCompanyIds.Any()))
+                        {
+                            <MudDivider Class="mb-4" />
+                            <MudText Typo="Typo.caption" Class="mb-2"><b>Granular Property Access</b></MudText>
+                            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-2" Style="font-size: 0.8rem;">
+                                <i>If no specific property is added below, the user will see <b>ALL</b> properties for the selected companies.</i>
+                            </MudText>
+
+                            <MudGrid Class="align-center mb-2">
+                                <MudItem xs="10">
+                                    <MudSelect T="int" Label="Select Property to Limit Access" @bind-Value="_tempSelectedPropertyId" Variant="Variant.Outlined" Dense="true" AnchorOrigin="Origin.BottomCenter">
+                                        @if (!_filteredProperties.Any())
+                                        {
+                                            <MudSelectItem Value="0" Disabled="true">No properties found for selected companies</MudSelectItem>
+                                        }
+                                        else
+                                        {
+                                            @foreach (var prop in _filteredProperties.Where(p => !_config.SpecificProperties.Any(sp => sp.PropertyId == p.Id)))
+                                            {
+                                                <MudSelectItem Value="@prop.Id">@prop.Name</MudSelectItem>
+                                            }
+                                        }
+                                    </MudSelect>
+                                </MudItem>
+                                <MudItem xs="2">
+                                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="AddPropertyConfig" Size="Size.Small" Disabled="@(_tempSelectedPropertyId == 0)">Add</MudButton>
+                                </MudItem>
+                            </MudGrid>
+
+                            <!-- Specific Properties Table -->
+                            @if (_config.SpecificProperties.Any())
+                            {
+                                <MudTable Items="_config.SpecificProperties" Dense="true" Hover="true" Striped="true" Elevation="0" Class="mt-2 border rounded">
+                                    <HeaderContent>
+                                        <MudTh>Property Name</MudTh>
+                                        <MudTh>View Financials</MudTh>
+                                        <MudTh>View Compliance</MudTh>
+                                        <MudTh>Action</MudTh>
+                                    </HeaderContent>
+                                    <RowTemplate Context="propConfig">
+                                        <MudTd><b>@propConfig.PropertyName</b></MudTd>
+                                        <MudTd>
+                                            <MudCheckBox @bind-Value="propConfig.CanViewFinancials" Color="Color.Warning" Dense="true"></MudCheckBox>
+                                        </MudTd>
+                                        <MudTd>
+                                            <MudCheckBox @bind-Value="propConfig.CanViewCompliance" Color="Color.Tertiary" Dense="true"></MudCheckBox>
+                                        </MudTd>
+                                        <MudTd>
+                                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => RemovePropertyConfig(propConfig))" />
+                                        </MudTd>
+                                    </RowTemplate>
+                                </MudTable>
+                            }
+                        }
+                    </MudPaper>
+                }
+
+            </MudForm>
+        </MudContainer>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit" Disabled="@(!_success || _processing)">
+            @if (_processing)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+            }
+            Create User
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; }
+
+    private string _fullName;
+    private string _password;
+    private bool _isSuperAdmin;
+    private bool _processing;
+    private bool _success;
+
+    private PmsAccessConfig _config = new();
+
+    // Store selected IDs explicitly
+    private IEnumerable<int> _internalSelectedCompanyIds = new HashSet<int>();
+
+    // Property Binding for Company Select
+    private IEnumerable<int> SelectedCompanyIds
+    {
+        get => _internalSelectedCompanyIds;
+        set
+        {
+            // Always update and filter when the value is set by MudBlazor
+            _internalSelectedCompanyIds = value ?? new HashSet<int>();
+            FilterProperties();
+            StateHasChanged();
+        }
+    }
+
+    private int _tempSelectedPropertyId;
+
+    // Data Sources
+    private List<Company> _allCompanies = new();
+
+    // Use a lightweight DTO for property loading to avoid tracking issues
+    private class PropertyDto { public int Id { get; set; } public string Name { get; set; } public int PurchaserId { get; set; } }
+    private List<PropertyDto> _allProperties = new();
+    private List<PropertyDto> _filteredProperties = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            using var context = DbFactory.CreateDbContext();
+
+            // 1. Fetch Companies
+            _allCompanies = await context.Companies.AsNoTracking().ToListAsync();
+
+            // 2. Fetch Properties using simple projection
+            _allProperties = await context.Properties.AsNoTracking()
+                .Select(p => new PropertyDto { Id = p.Id, Name = p.Name, PurchaserId = p.PurchaserId })
+                .ToListAsync();
+
+            FilterProperties();
+        }
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number == -2)
+        {
+            Snackbar.Add("Database is Locked. Please check SSMS.", Severity.Error);
+        }
+    }
+
+    private void OnViewAllCompaniesChanged(bool value)
+    {
+        _config.ViewAllCompanies = value;
+        FilterProperties();
+    }
+
+    private void FilterProperties()
+    {
+        if (_config.ViewAllCompanies)
+        {
+            _filteredProperties = _allProperties.ToList();
+        }
+        else if (_internalSelectedCompanyIds.Any())
+        {
+            // IMPORTANT: Ensure we are matching PurchaserId against the selected Company IDs
+            // Using ToList() to execute immediate filtering in memory
+            var selectedSet = _internalSelectedCompanyIds.ToHashSet();
+            _filteredProperties = _allProperties.Where(p => selectedSet.Contains(p.PurchaserId)).ToList();
+        }
+        else
+        {
+            _filteredProperties = new List<PropertyDto>();
+        }
+    }
+
+    private void AddPropertyConfig()
+    {
+        if (_tempSelectedPropertyId == 0) return;
+
+        var prop = _allProperties.FirstOrDefault(p => p.Id == _tempSelectedPropertyId);
+        if (prop == null) return;
+
+        _config.SpecificProperties.Add(new PropertyAccessConfig
+        {
+            PropertyId = prop.Id,
+            PropertyName = prop.Name,
+            CanViewFinancials = false,
+            CanViewCompliance = false
+        });
+
+        _tempSelectedPropertyId = 0;
+    }
+
+    private void RemovePropertyConfig(PropertyAccessConfig item)
+    {
+        _config.SpecificProperties.Remove(item);
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task Submit()
+    {
+        _processing = true;
+        try
+        {
+            _config.AllowedCompanyIds = _internalSelectedCompanyIds.ToList();
+            if (_config.ViewAllCompanies) _config.AllowedCompanyIds.Clear();
+
+            string accessJson = JsonSerializer.Serialize(_config);
+
+            using var context = DbFactory.CreateDbContext();
+            context.Database.SetCommandTimeout(5);
+
+            string baseUsername = _fullName.ToLower().Replace(" ", ".");
+            string finalUsername = baseUsername;
+            int counter = 1;
+            while (await context.PmsUsers.AnyAsync(u => u.Username == finalUsername))
+            {
+                finalUsername = $"{baseUsername}{counter++}";
+            }
+
+            var newUser = new PmsUser
+            {
+                FullName = _fullName,
+                Username = finalUsername,
+                PasswordHash = HashPassword(_password),
+                IsSuperAdmin = _isSuperAdmin,
+                AccessConfigJson = accessJson
+            };
+
+            context.PmsUsers.Add(newUser);
+            await context.SaveChangesAsync();
+
+            Snackbar.Add($"User '{finalUsername}' created successfully!", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _processing = false;
+        }
+    }
+
+    private static string HashPassword(string password)
+    {
+        using var sha256 = System.Security.Cryptography.SHA256.Create();
+        var bytes = sha256.ComputeHash(System.Text.Encoding.UTF8.GetBytes(password));
+        return Convert.ToBase64String(bytes);
+    }
+}

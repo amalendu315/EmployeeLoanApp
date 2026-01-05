@@ -1,7 +1,9 @@
-﻿@page "/employees"
+﻿@page "/loan/employees"
 @using EmployeeLoanApp.Services
 @using EmployeeLoanApp.Models
 @using System.IO
+@using Microsoft.JSInterop
+@inject IJSRuntime JS
 @inject LoanService LoanService
 @inject ISnackbar Snackbar
 @inject IWebHostEnvironment Env
@@ -205,7 +207,7 @@
     <!-- Header -->
     <div class="d-flex justify-space-between align-center mb-6">
         <div>
-            <MudText Typo="Typo.h4" Style="font-weight:700; color:#0F172A;">Team Directory</MudText>
+            <MudText Typo="Typo.h4" Style="font-weight:700; color:#0F172A;">Employee Directory</MudText>
             <MudText Typo="Typo.body1" Color="Color.Secondary">Manage your workforce, onboarding, and records.</MudText>
         </div>
     </div>
@@ -423,33 +425,74 @@
         <!-- TAB 3: BULK IMPORT -->
         <MudTabPanel Text="Bulk Import" Icon="@Icons.Material.Filled.CloudUpload">
             <MudGrid Class="mt-2">
-                <MudItem xs="12" md="5">
+                <MudItem xs="12" md="6">
                     <MudCard Elevation="0" Class="crm-card pa-6 h-100">
-                        <MudText Typo="Typo.h6" Class="mb-4"><b>Import Guide</b></MudText>
-                        <MudTimeline TimelinePosition="TimelinePosition.Start" Class="pa-0">
-                            <MudTimelineItem Color="Color.Info" Size="Size.Small"><ItemContent><MudText Typo="Typo.subtitle2">1. Prepare CSV</MudText></ItemContent></MudTimelineItem>
-                            <MudTimelineItem Color="Color.Success" Size="Size.Small"><ItemContent><MudText Typo="Typo.subtitle2">2. Match Headers</MudText></ItemContent></MudTimelineItem>
-                            <MudTimelineItem Color="Color.Warning" Size="Size.Small"><ItemContent><MudText Typo="Typo.subtitle2">3. Upload</MudText></ItemContent></MudTimelineItem>
+                        <MudText Typo="Typo.h6" Class="mb-4"><b>CSV Structure Guide</b></MudText>
+
+                        <MudText Typo="Typo.body2" Class="mb-2">Your CSV file <b>must</b> follow this exact column order (20 columns). Leave cells blank if data is optional.</MudText>
+
+                        <div class="code-block">
+                            1. EmployeeCode, 2. FullName, 3. Company, 4. Department, 5. Designation,
+                            6. DateOfJoining (yyyy-MM-dd), 7. PhoneNumber, 8. Email,
+                            9. PAN, 10. Aadhaar, 11. ResidentialAddress,
+                            12. ReportingManagerName, 13. ReportingManagerID,
+                            14. OpeningLoanBalance, 15. IsNocClear (true/false),
+                            16. BankName, 17. BankBranch, 18. AccountHolderName,
+                            19. AccountNumber, 20. IFSC
+                        </div>
+
+                        <MudTimeline TimelinePosition="TimelinePosition.Start" Class="mt-6 pa-0">
+                            <MudTimelineItem Color="Color.Info" Size="Size.Small">
+                                <ItemContent>
+                                    <MudText Typo="Typo.subtitle2">1. Prepare Data</MudText>
+                                    <MudText Typo="Typo.caption">Ensure dates are YYYY-MM-DD format.</MudText>
+                                </ItemContent>
+                            </MudTimelineItem>
+                            <MudTimelineItem Color="Color.Success" Size="Size.Small">
+                                <ItemContent>
+                                    <MudText Typo="Typo.subtitle2">2. Verify Headers</MudText>
+                                    <MudText Typo="Typo.caption">Include all banking columns even if empty.</MudText>
+                                </ItemContent>
+                            </MudTimelineItem>
+                            <MudTimelineItem Color="Color.Warning" Size="Size.Small">
+                                <ItemContent>
+                                    <MudText Typo="Typo.subtitle2">3. Upload</MudText>
+                                    <MudText Typo="Typo.caption">System will skip the first header row.</MudText>
+                                </ItemContent>
+                            </MudTimelineItem>
                         </MudTimeline>
+                        <MudCard Elevation="0" Class="crm-card pa-6 h-100">
+                            <MudText Typo="Typo.h6" Class="mb-4"><b>CSV Structure Guide</b></MudText>
+
+                            <MudButton Variant="Variant.Outlined"
+                                       Color="Color.Primary"
+                                       StartIcon="@Icons.Material.Filled.Download"
+                                       OnClick="DownloadTemplate"
+                                       Class="mt-6"
+                                       FullWidth="true">
+                                Download Empty Template
+                            </MudButton>
+                        </MudCard>
                     </MudCard>
                 </MudItem>
-                <MudItem xs="12" md="7">
+                <MudItem xs="12" md="6">
                     <div class="crm-upload-box">
                         <InputFile OnChange="UploadData" class="native-input" accept=".csv" />
                         @if (_importing)
                         {
                             <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
                             <MudText Class="mt-2">Processing...</MudText>
- }
+                        }
                         else
                         {
                             <MudIcon Icon="@Icons.Material.Filled.CloudUpload" Size="Size.Large" Color="Color.Primary" />
                             <MudText Typo="Typo.h6" Class="mt-2">Click to Upload CSV</MudText>
- }
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">Supports standard .csv format</MudText>
+                        }
                     </div>
                     @if (_importedCount > 0)
                     {
-                        <MudAlert Severity="Severity.Success" Class="mt-4">Imported @_importedCount records!</MudAlert>
+                        <MudAlert Severity="Severity.Success" Class="mt-4">Successfully imported @_importedCount records!</MudAlert>
                     }
                 </MudItem>
             </MudGrid>
@@ -591,6 +634,17 @@
         if (type == "PAN") panFileName = file.Name;
         else aadhaarFileName = file.Name;
         Snackbar.Add($"{type} Uploaded!", Severity.Success);
+    }
+
+    private async Task DownloadTemplate()
+    {
+        // The exact headers required by your import logic
+        string csvHeaders = "EmployeeCode,FullName,Company,Department,Designation,DateOfJoining,PhoneNumber,Email,PAN,Aadhaar,ResidentialAddress,ReportingManagerName,ReportingManagerID,OpeningLoanBalance,IsNocClear,BankName,BankBranch,AccountHolderName,AccountNumber,IFSC";
+
+        var fileName = "Employee_Import_Template.csv";
+
+        // Trigger the download via JS
+        await JS.InvokeVoidAsync("downloadCsv", fileName, csvHeaders);
     }
 
     private async Task SaveEmployee()

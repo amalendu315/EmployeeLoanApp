@@ -1,5 +1,6 @@
-﻿using Microsoft.EntityFrameworkCore;
-using EmployeeLoanApp.Models;
+﻿using EmployeeLoanApp.Models;
+using EmployeeLoanApp.Models.PMS;
+using Microsoft.EntityFrameworkCore;
 
 namespace EmployeeLoanApp.Data
 {
@@ -21,6 +22,13 @@ namespace EmployeeLoanApp.Data
         public DbSet<LoanPurpose> LoanPurposes { get; set; }
         public DbSet<LoanRepayment> LoanRepayments { get; set; }
         public DbSet<LoanAuditLog> LoanAuditLogs { get; set; }
+
+        // --- NEW PMS TABLES (pms schema) ---
+        public DbSet<PmsUser> PmsUsers { get; set; }
+        public DbSet<Property> Properties { get; set; }
+        public DbSet<PreviousOwnerDetails> PreviousOwners { get; set; }
+        public DbSet<PropertyFinancials> PropertyFinancials { get; set; }
+        public DbSet<ComplianceDocument> ComplianceDocuments { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -63,6 +71,47 @@ namespace EmployeeLoanApp.Data
             modelBuilder.Entity<Employee>().Property(p => p.OpeningLoanBalance).HasColumnType("decimal(18,2)");
             modelBuilder.Entity<LoanRepayment>().Property(p => p.EMIAmount).HasColumnType("decimal(18,2)");
             modelBuilder.Entity<LoanRepayment>().Property(p => p.PaymentAmount).HasColumnType("decimal(18,2)");
+            // --- PMS CONFIGURATIONS (New) ---
+
+            // 1. Configure PMS User unique username
+            modelBuilder.Entity<PmsUser>()
+                .HasIndex(u => u.Username)
+                .IsUnique();
+
+            // 2. Cross-Schema Relationship: Property -> Company (Purchaser)
+            // We assume 'Company' is in the default dbo schema.
+            modelBuilder.Entity<Property>()
+                .HasOne<Company>() // Relationship to existing Company entity
+                .WithMany()        // Company has many Properties (implicitly)
+                .HasForeignKey(p => p.PurchaserId)
+                .OnDelete(DeleteBehavior.Restrict); // Prevent deleting a company if it owns properties
+
+            // 3. Cross-Schema Relationship: Property -> Company (Used By)
+            modelBuilder.Entity<Property>()
+                .HasOne<Company>()
+                .WithMany()
+                .HasForeignKey(p => p.UsedByCompanyId)
+                .IsRequired(false) // Nullable
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // 4. Cross-Schema Relationship: Financials -> Company (Loan Company)
+            modelBuilder.Entity<PropertyFinancials>()
+                .HasOne<Company>()
+                .WithMany()
+                .HasForeignKey(f => f.LoanCompanyId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // 5. Configure 1-to-1 Relationships (Shared Primary Key)
+            modelBuilder.Entity<Property>()
+                .HasOne(p => p.PreviousOwner)
+                .WithOne(po => po.Property)
+                .HasForeignKey<PreviousOwnerDetails>(po => po.PropertyId);
+
+            modelBuilder.Entity<Property>()
+                .HasOne(p => p.Financials)
+                .WithOne(pf => pf.Property)
+                .HasForeignKey<PropertyFinancials>(pf => pf.PropertyId);
         }
     }
 }

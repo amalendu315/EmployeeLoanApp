@@ -21,29 +21,16 @@
     <Routes @rendermode="InteractiveServer" />
     <script src="_framework/blazor.web.js"></script>
     <script src="_content/MudBlazor/MudBlazor.min.js"></script>
-    <!-- DIGIO INTEROP SCRIPT -->
     <script>
-        window.triggerDigioSign = (documentId, identifier, dotNetHelper) => {
-            var options = {
-                environment: 'sandbox', // 'production' for live
-                callback: function (response) {
-                    if (response.hasOwnProperty("error_code")) {
-                        console.log("error occurred in process");
-                        dotNetHelper.invokeMethodAsync('OnSignError', response.message);
-                    } else {
-                        console.log("signing completed successfully");
-                        // response contains { msg: "success", document_id: "...", ... }
-                        dotNetHelper.invokeMethodAsync('OnSignSuccess', response.document_id);
-                    }
-                },
-                logo: 'https://img.icons8.com/color/48/money-bag.png',
-                is_iframe: true // Opens in a popup/iframe
-            };
-
-            var digio = new Digio(options);
-            digio.init();
-            digio.submit(documentId, identifier);
-        };
+        window.downloadCsv = (filename, content) => {
+            var element = document.createElement('a');
+            element.setAttribute('href', 'data:text/csv;charset=utf-8,' + encodeURIComponent(content));
+            element.setAttribute('download', filename);
+            element.style.display = 'none';
+            document.body.appendChild(element);
+            element.click();
+            document.body.removeChild(element);
+        }
     </script>
 </body>
 

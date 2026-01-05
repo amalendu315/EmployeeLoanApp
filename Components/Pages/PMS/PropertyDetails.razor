@@ -1,0 +1,377 @@
+﻿@page "/pms/properties/view/{Id:int}"
+@using EmployeeLoanApp.Components.Layout
+@using EmployeeLoanApp.Models.PMS
+@using EmployeeLoanApp.Data
+@using EmployeeLoanApp.Services.PMS
+@using Microsoft.EntityFrameworkCore
+@using System.Security.Claims
+@using System.Text.Json
+@layout PMSLayout
+@inject IDbContextFactory<EmployeeLoanContext> DbFactory
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+
+<PageTitle>PMS | @_propertyName</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4 mb-8">
+
+    <!-- HEADER & ACTIONS -->
+    <div class="d-flex justify-space-between align-center mb-6">
+        <div class="d-flex align-center gap-4">
+            <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" Color="Color.Default" OnClick="@(() => Nav.NavigateTo("/pms/properties/all"))" />
+            <div>
+                <MudText Typo="Typo.h5" Style="font-weight:700;">@_propertyName</MudText>
+                <div class="d-flex gap-2 align-center">
+                    <MudIcon Icon="@Icons.Material.Filled.LocationOn" Size="Size.Small" Color="Color.Secondary" />
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">@_propertyLocation</MudText>
+                </div>
+            </div>
+        </div>
+
+        <div class="d-flex gap-2">
+            @if (_property?.OwnershipType == OwnershipType.Owned)
+            {
+                <MudChip T="string" Color="Color.Success" Variant="Variant.Filled" Size="Size.Small">Owned</MudChip>
+            }
+            else if (_property != null)
+            {
+                <MudChip T="string" Color="Color.Info" Variant="Variant.Filled" Size="Size.Small">Leased</MudChip>
+            }
+
+            <MudMenu Icon="@Icons.Material.Filled.MoreVert" Color="Color.Secondary">
+                <MudMenuItem Icon="@Icons.Material.Filled.Edit">Edit Property</MudMenuItem>
+                <MudMenuItem Icon="@Icons.Material.Filled.Delete" IconColor="Color.Error">Delete</MudMenuItem>
+            </MudMenu>
+        </div>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="d-flex justify-center mt-16">
+            <MudProgressCircular Color="Color.Primary" Size="Size.Large" Indeterminate="true" />
+        </div>
+    }
+    else if (_property == null)
+    {
+        <MudAlert Severity="Severity.Error">Property not found or access denied.</MudAlert>
+    }
+    else
+    {
+        <MudGrid>
+            <!-- LEFT COLUMN: MAIN TABS -->
+            <MudItem xs="12" md="8">
+                <MudCard Elevation="2" Class="rounded-lg h-100">
+                    <MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pa-6">
+
+                        <!-- 1. OVERVIEW TAB -->
+                        <MudTabPanel Text="Overview" Icon="@Icons.Material.Filled.Dashboard">
+                            <MudGrid>
+                                <MudItem xs="6">
+                                    <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Category</MudText>
+                                    <MudText Typo="Typo.body1">@_property.Category</MudText>
+                                </MudItem>
+                                <MudItem xs="6">
+                                    <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Area Measurement</MudText>
+                                    <MudText Typo="Typo.body1">@_property.AreaMeasurement @(_property.Category.ToString().Contains("Land") ? "Acres" : "SqFt")</MudText>
+                                </MudItem>
+                                <MudItem xs="6">
+                                    <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Property ID / Unit</MudText>
+                                    <MudText Typo="Typo.body1">@(_property.PropertyIdentifier ?? "N/A")</MudText>
+                                </MudItem>
+                                <MudItem xs="6">
+                                    <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Registration Status</MudText>
+                                    @if (_property.RegistrationStatus == RegistrationStatus.Registered)
+                                    {
+                                        <MudText Typo="Typo.body1" Color="Color.Success">Registered</MudText>
+                                    }
+                                    else
+                                    {
+                                        <MudText Typo="Typo.body1" Color="Color.Warning">@(_property.RegistrationStatus?.ToString() ?? "N/A")</MudText>
+                                    }
+                                </MudItem>
+                                <MudItem xs="12">
+                                    <MudText Typo="Typo.subtitle2" Color="Color.Secondary" Class="mb-1">Full Address</MudText>
+                                    <MudPaper Elevation="0" Class="pa-3 mud-background-gray rounded">
+                                        <MudText Typo="Typo.body2">@_property.LocationAddress</MudText>
+                                    </MudPaper>
+                                </MudItem>
+                            </MudGrid>
+                        </MudTabPanel>
+
+                        <!-- 2. FINANCIALS TAB (SECURED) -->
+                        @if (_canViewFinancials)
+                        {
+                            <MudTabPanel Text="Financials" Icon="@Icons.Material.Filled.AttachMoney">
+                                @if (_property.Financials != null)
+                                {
+                                    <MudGrid>
+                                        <MudItem xs="12" sm="4">
+                                            <MudPaper Elevation="0" Class="pa-4 border-solid border-2 mud-border-primary rounded-lg">
+                                                <MudText Typo="Typo.caption" Color="Color.Secondary">Principal Amount</MudText>
+                                                <MudText Typo="Typo.h5" Color="Color.Primary"><b>₹ @_property.Financials.PrincipalAmount.ToString("N0")</b></MudText>
+                                            </MudPaper>
+                                        </MudItem>
+                                        <MudItem xs="6" sm="4">
+                                            <MudPaper Elevation="0" Class="pa-4 mud-background-gray rounded-lg">
+                                                <MudText Typo="Typo.caption">Registry Tax</MudText>
+                                                <MudText Typo="Typo.h6">₹ @_property.Financials.RegistryTax.ToString("N0")</MudText>
+                                            </MudPaper>
+                                        </MudItem>
+                                        <MudItem xs="6" sm="4">
+                                            <MudPaper Elevation="0" Class="pa-4 mud-background-gray rounded-lg">
+                                                <MudText Typo="Typo.caption">Other Charges</MudText>
+                                                <MudText Typo="Typo.h6">₹ @_property.Financials.OtherCharges.ToString("N0")</MudText>
+                                            </MudPaper>
+                                        </MudItem>
+
+                                        @if (_property.Financials.PurchaseMethod != PurchaseMethod.Cash)
+                                        {
+                                            <MudItem xs="12">
+                                                <MudDivider Class="my-4" />
+                                                <div class="d-flex gap-2 align-center mb-2">
+                                                    <MudIcon Icon="@Icons.Material.Filled.AccountBalance" Color="Color.Info" />
+                                                    <MudText Typo="Typo.h6">Loan Details</MudText>
+                                                </div>
+                                            </MudItem>
+                                            <MudItem xs="12" sm="6">
+                                                <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Purchase Method</MudText>
+                                                <MudChip T="string" Color="Color.Warning" Size="Size.Small">@_property.Financials.PurchaseMethod</MudChip>
+                                            </MudItem>
+                                            <MudItem xs="12" sm="6">
+                                                <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Bank Valuation</MudText>
+                                                <MudText Typo="Typo.h6">₹ @(_property.Financials.BankValuation?.ToString("N0") ?? "0")</MudText>
+                                            </MudItem>
+                                        }
+                                    </MudGrid>
+                                }
+                                else
+                                {
+                                    <div class="d-flex flex-column align-center py-8">
+                                        <MudIcon Icon="@Icons.Material.Filled.MoneyOff" Size="Size.Large" Color="Color.Default" />
+                                        <MudText Class="mt-2" Color="Color.Secondary">No financial records added.</MudText>
+                                    </div>
+                                }
+                            </MudTabPanel>
+                        }
+
+                        <!-- 3. COMPLIANCE TAB (SECURED) -->
+                        @if (_canViewCompliance)
+                        {
+                            <MudTabPanel Text="Compliance" Icon="@Icons.Material.Filled.Gavel" BadgeData="@(_property.Compliances?.Count ?? 0)" BadgeColor="Color.Primary">
+                                @if (_property.Compliances != null && _property.Compliances.Any())
+                                {
+                                    <MudTable Items="@_property.Compliances" Elevation="0" Hover="true" Dense="true" Class="mt-2">
+                                        <HeaderContent>
+                                            <MudTh>Document</MudTh>
+                                            <MudTh>Expiry</MudTh>
+                                            <MudTh>Status</MudTh>
+                                            <MudTh></MudTh>
+                                        </HeaderContent>
+                                        <RowTemplate Context="doc">
+                                            <MudTd>
+                                                <div class="d-flex align-center gap-2">
+                                                    <MudIcon Icon="@Icons.Material.Filled.Description" Size="Size.Small" Color="Color.Secondary" />
+                                                    <MudText Typo="Typo.body2">@doc.DocumentName</MudText>
+                                                </div>
+                                            </MudTd>
+                                            <MudTd>@(doc.ExpiryDate?.ToString("dd MMM yyyy") ?? "-")</MudTd>
+                                            <MudTd>
+                                                @if (doc.ExpiryDate.HasValue && doc.ExpiryDate.Value < DateTime.Now)
+                                                {
+                                                    <MudChip T="string" Color="Color.Error" Size="Size.Small" Variant="Variant.Text">Expired</MudChip>
+                                                }
+                                                else if (doc.ExpiryDate.HasValue && doc.ExpiryDate.Value < DateTime.Now.AddDays(30))
+                                                {
+                                                    <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Text">Expiring</MudChip>
+                                                }
+                                                else
+                                                {
+                                                    <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Text">Valid</MudChip>
+                                                }
+                                            </MudTd>
+                                            <MudTd>
+                                                @if (!string.IsNullOrEmpty(doc.FilePath))
+                                                {
+                                                    <MudIconButton Icon="@Icons.Material.Filled.Download" Size="Size.Small" Color="Color.Primary" />
+                                                }
+                                            </MudTd>
+                                        </RowTemplate>
+                                    </MudTable>
+                                }
+                                else
+                                {
+                                    <div class="d-flex flex-column align-center py-8">
+                                        <MudIcon Icon="@Icons.Material.Filled.AssignmentTurnedIn" Size="Size.Large" Color="Color.Success" />
+                                        <MudText Class="mt-2" Color="Color.Secondary">No compliance documents found.</MudText>
+                                    </div>
+                                }
+                            </MudTabPanel>
+                        }
+
+                    </MudTabs>
+                </MudCard>
+            </MudItem>
+
+            <!-- RIGHT COLUMN: SIDEBAR INFO -->
+            <MudItem xs="12" md="4">
+
+                <!-- Previous Owner Card -->
+                <MudCard Elevation="2" Class="rounded-lg mb-4">
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <MudText Typo="Typo.subtitle1"><b>Previous Owner</b></MudText>
+                        </CardHeaderContent>
+                        <CardHeaderActions>
+                            <MudIconButton Icon="@Icons.Material.Filled.History" Color="Color.Default" />
+                        </CardHeaderActions>
+                    </MudCardHeader>
+                    <MudCardContent>
+                        @if (_property.PreviousOwner != null)
+                        {
+                            <MudText Typo="Typo.h6">@_property.PreviousOwner.FullName</MudText>
+                            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-2">@_property.PreviousOwner.PhoneNumber</MudText>
+                            <MudDivider Class="my-2" />
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">Address</MudText>
+                            <MudText Typo="Typo.body2">@_property.PreviousOwner.FullAddress</MudText>
+
+                            @if (!string.IsNullOrEmpty(_property.PreviousOwner.IdentityDocFilePath))
+                            {
+                                <MudButton Variant="Variant.Outlined" Color="Color.Primary" FullWidth="true" Class="mt-4" StartIcon="@Icons.Material.Filled.FilePresent">View ID Doc</MudButton>
+                            }
+                        }
+                        else
+                        {
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">No previous owner data.</MudText>
+                        }
+                    </MudCardContent>
+                </MudCard>
+
+                <!-- System Info Card -->
+                <MudCard Elevation="2" Class="rounded-lg">
+                    <MudCardContent>
+                        <MudText Typo="Typo.subtitle2" Class="mb-2"><b>System Info</b></MudText>
+                        <div class="d-flex justify-space-between mb-1">
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">Internal ID</MudText>
+                            <MudText Typo="Typo.caption">#@_property.Id</MudText>
+                        </div>
+                        <div class="d-flex justify-space-between">
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">Purchaser ID</MudText>
+                            <MudText Typo="Typo.caption">Company #@_property.PurchaserId</MudText>
+                        </div>
+                    </MudCardContent>
+                </MudCard>
+
+            </MudItem>
+        </MudGrid>
+    }
+</MudContainer>
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private Property? _property;
+    private string _propertyName = "Property Details";
+    private string _propertyLocation = "";
+    private bool _loading = true;
+
+    // RBAC Flags
+    private bool _canViewFinancials = false;
+    private bool _canViewCompliance = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _loading = true;
+        try
+        {
+            // 1. Load Data
+            await LoadPropertyData();
+
+            if (_property != null)
+            {
+                // 2. Evaluate Permissions
+                await EvaluatePermissions();
+
+                _propertyName = _property.Name;
+                _propertyLocation = _property.LocationAddress;
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading property: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task EvaluatePermissions()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        // Default: Deny
+        _canViewFinancials = false;
+        _canViewCompliance = false;
+
+        if (user.Identity?.IsAuthenticated == true)
+        {
+            // A. Super Admin Check
+            if (user.IsInRole("SuperAdmin") || user.HasClaim(c => c.Type == "IsSuperAdmin" && c.Value == "True"))
+            {
+                _canViewFinancials = true;
+                _canViewCompliance = true;
+                return;
+            }
+
+            // B. Manager Config Check
+            var claim = user.FindFirst("AccessConfig");
+            if (claim != null)
+            {
+                try
+                {
+                    var config = JsonSerializer.Deserialize<PmsAccessConfig>(claim.Value);
+                    if (config != null)
+                    {
+                        // 1. Check if user is even allowed to see this property
+                        // (Ideally, the API shouldn't return it, but UI double-check)
+                        // If strict access is on, we might want to hide the whole page if ID is not allowed.
+                        // For now, we assume if they got here, they can see basic info, but we filter tabs.
+
+                        // 2. Check Permissions for this specific property
+                        var specificConfig = config.SpecificProperties.FirstOrDefault(p => p.PropertyId == Id);
+
+                        if (specificConfig != null)
+                        {
+                            // Specific Override found
+                            _canViewFinancials = specificConfig.CanViewFinancials;
+                            _canViewCompliance = specificConfig.CanViewCompliance;
+                        }
+                        else if (config.ViewAllProperties)
+                        {
+                            // Fallback to global setting if allowed to view all
+                            _canViewFinancials = config.GlobalFinancialsAccess;
+                            _canViewCompliance = config.GlobalComplianceAccess;
+                        }
+                        // If not in specific list AND not view all properties => Deny (default false)
+                    }
+                }
+                catch { /* Json Error */ }
+            }
+        }
+    }
+
+    private async Task LoadPropertyData()
+    {
+        using var context = DbFactory.CreateDbContext();
+
+        _property = await context.Properties
+            .Include(p => p.Financials)
+            .Include(p => p.PreviousOwner)
+            .Include(p => p.Compliances)
+            .AsSplitQuery()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Id == Id);
+    }
+}

@@ -1,0 +1,208 @@
+﻿@page "/pms"
+@using EmployeeLoanApp.Components.Layout
+@using EmployeeLoanApp.Models.PMS
+@using EmployeeLoanApp.Data
+@using EmployeeLoanApp.Services.PMS
+@using Microsoft.EntityFrameworkCore
+@using System.Security.Claims
+@using System.Text.Json
+@layout PMSLayout
+@inject IDbContextFactory<EmployeeLoanContext> DbFactory
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>PMS | Dashboard</PageTitle>
+
+<style>
+    .kpi-card {
+        background: white;
+        border-radius: 12px;
+        padding: 24px;
+        border: 1px solid #E2E8F0;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        transition: transform 0.2s;
+        height: 100%;
+    }
+
+        .kpi-card:hover {
+            transform: translateY(-2px);
+            border-color: var(--mud-palette-primary-lighten);
+        }
+
+    .kpi-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 16px;
+    }
+
+    .kpi-value {
+        font-size: 2rem;
+        font-weight: 800;
+        color: #0F172A;
+        line-height: 1;
+    }
+
+    .kpi-label {
+        color: #64748B;
+        font-size: 0.875rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .dashboard-table-container {
+        background: white;
+        border-radius: 16px;
+        border: 1px solid #E2E8F0;
+        overflow: hidden;
+    }
+</style>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-8 mb-16">
+    <div class="d-flex justify-space-between align-center mb-8">
+        <div>
+            <MudText Typo="Typo.h4" Style="font-weight:700; color:#0F172A;">Overview</MudText>
+            <MudText Typo="Typo.body1" Color="Color.Secondary">Welcome back, <b>@_userName</b> (@_roleLabel)</MudText>
+        </div>
+        <div class="d-flex gap-3">
+            <MudButton Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.Refresh" OnClick="LoadData">Refresh</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Href="/pms/properties/add" Class="px-6 rounded-lg">Add Property</MudButton>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_errorMessage))
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Filled" Class="mb-6">@_errorMessage</MudAlert>
+    }
+
+    @if (_loading)
+    {
+        <div class="d-flex justify-center align-center" style="height: 400px;">
+            <MudProgressCircular Color="Color.Primary" Size="Size.Large" Indeterminate="true" />
+        </div>
+    }
+    else
+    {
+        <MudGrid Class="mb-8">
+            <MudItem xs="12" sm="6" md="4">
+                <div class="kpi-card">
+                    <div class="kpi-icon" style="background:#EFF6FF; color:#3B82F6;">
+                        <MudIcon Icon="@Icons.Material.Filled.Domain" Size="Size.Medium" />
+                    </div>
+                    <div class="kpi-value">@_accessibleCount</div>
+                    <div class="kpi-label">@(_isSuperAdmin ? "Total Properties" : "Accessible Properties")</div>
+                </div>
+            </MudItem>
+            <MudItem xs="12" sm="6" md="4">
+                <div class="kpi-card">
+                    <div class="kpi-icon" style="background:#F0FDF4; color:#22C55E;">
+                        <MudIcon Icon="@Icons.Material.Filled.Home" Size="Size.Medium" />
+                    </div>
+                    <div class="kpi-value">@_ownedCount</div>
+                    <div class="kpi-label">Owned</div>
+                </div>
+            </MudItem>
+            <MudItem xs="12" sm="6" md="4">
+                <div class="kpi-card">
+                    <div class="kpi-icon" style="background:#FFF7ED; color:#F97316;">
+                        <MudIcon Icon="@Icons.Material.Filled.Business" Size="Size.Medium" />
+                    </div>
+                    <div class="kpi-value">@_leasedCount</div>
+                    <div class="kpi-label">Leased</div>
+                </div>
+            </MudItem>
+        </MudGrid>
+
+        <MudText Typo="Typo.h5" Class="mb-4" Style="font-weight:700;">@(_isSuperAdmin ? "Recent Activity" : "My Properties")</MudText>
+        <div class="dashboard-table-container shadow-sm pa-8 d-flex flex-column align-center justify-center" style="min-height: 250px;">
+            <MudIcon Icon="@Icons.Material.Filled.Dataset" Size="Size.Large" Color="Color.Default" Style="opacity:0.3; width: 64px; height: 64px;" />
+            <MudText Typo="Typo.h6" Color="Color.Secondary" Class="mt-4">
+                @(_accessibleCount > 0 ? $"{_accessibleCount} Records Available" : "No Records Found")
+            </MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">Use the search function to view lists.</MudText>
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Search" Href="/pms/properties/all">View List</MudButton>
+        </div>
+    }
+</MudContainer>
+
+@code {
+    private bool _loading = true;
+    private string _errorMessage = "";
+    private string _userName = "User";
+    private string _roleLabel = "Manager";
+    private bool _isSuperAdmin = false;
+    private int _accessibleCount;
+    private int _ownedCount;
+    private int _leasedCount;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        _loading = true;
+        _errorMessage = "";
+        try
+        {
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+            _userName = user.Identity?.Name ?? "Guest";
+
+            PmsAccessConfig config = new();
+            if (user.IsInRole("SuperAdmin") || user.HasClaim(c => c.Type == "IsSuperAdmin" && c.Value == "True"))
+            {
+                _isSuperAdmin = true;
+                _roleLabel = "Super Admin";
+            }
+            else
+            {
+                var claim = user.FindFirst("AccessConfig");
+                if (claim != null) { try { config = JsonSerializer.Deserialize<PmsAccessConfig>(claim.Value) ?? new(); } catch { } }
+            }
+
+            using var context = DbFactory.CreateDbContext();
+            context.Database.SetCommandTimeout(5);
+
+            var query = context.Properties.AsNoTracking();
+
+            if (!_isSuperAdmin && !config.ViewAllProperties)
+            {
+                // RBAC Logic: Specific Override > Company Fallback > None
+                if (config.SpecificProperties != null && config.SpecificProperties.Any())
+                {
+                    var allowedIds = config.SpecificProperties.Select(p => p.PropertyId).ToList();
+                    query = query.Where(p => allowedIds.Contains(p.Id));
+                }
+                else if (config.AllowedCompanyIds != null && config.AllowedCompanyIds.Any())
+                {
+                    query = query.Where(p => config.AllowedCompanyIds.Contains(p.PurchaserId));
+                }
+                else if (!config.ViewAllCompanies)
+                {
+                    query = query.Where(p => false); // No access
+                }
+            }
+
+            _accessibleCount = await query.CountAsync();
+            _ownedCount = await query.CountAsync(p => p.OwnershipType == OwnershipType.Owned);
+            _leasedCount = await query.CountAsync(p => p.OwnershipType == OwnershipType.Leased);
+        }
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number == -2)
+        {
+            _errorMessage = "CRITICAL: Database Locked. Please close SSMS Query Tabs.";
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+}

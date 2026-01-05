@@ -1,6 +1,7 @@
 using EmployeeLoanApp.Components;
 using EmployeeLoanApp.Data;
 using EmployeeLoanApp.Services;
+using EmployeeLoanApp.Services.PMS;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage;
@@ -17,14 +18,20 @@ builder.Services.AddAuthentication(options =>
 })
 .AddCookie(options =>
 {
-    options.LoginPath = "/login"; // Redirect here if a Controller requests auth
-    options.ExpireTimeSpan = TimeSpan.FromDays(7); // Optional: Keep logged in for 7 days
+    options.LoginPath = "/"; // Redirect here if a Controller requests auth
+    options.ExpireTimeSpan = TimeSpan.FromDays(1); // Optional: Keep logged in for 7 days
 });
 
 // --- 2. BLAZOR AUTH & STORAGE ---
 builder.Services.AddScoped<ProtectedLocalStorage>(); // Required for your new AuthService
 builder.Services.AddScoped<AuthService>();
-builder.Services.AddScoped<AuthenticationStateProvider>(p => p.GetRequiredService<AuthService>());
+builder.Services.AddScoped<PMSAuthService>();
+// 2. Register the UNIFIED PROVIDER as the AuthenticationStateProvider
+builder.Services.AddScoped<UnifiedAuthenticationStateProvider>();
+builder.Services.AddScoped<AuthenticationStateProvider>(provider =>
+    provider.GetRequiredService<UnifiedAuthenticationStateProvider>());
+//builder.Services.AddScoped<IAuthService>(provider =>
+//    provider.GetRequiredService<UnifiedAuthenticationStateProvider>());
 builder.Services.AddAuthorizationCore();
 
 // --- 3. CORE SERVICES ---

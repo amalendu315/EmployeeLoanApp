@@ -1,0 +1,351 @@
+﻿@page "/pms/properties/add"
+@using EmployeeLoanApp.Components.Layout
+@using EmployeeLoanApp.Models
+@using EmployeeLoanApp.Models.PMS
+@using EmployeeLoanApp.Data
+@using Microsoft.EntityFrameworkCore
+@layout PMSLayout
+@inject IDbContextFactory<EmployeeLoanContext> DbFactory
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mb-16">
+    <MudText Typo="Typo.h5" Class="mb-4"><b>Add New Property</b></MudText>
+
+    <MudForm @ref="_form" @bind-IsValid="_success">
+        <MudPaper Class="pa-6 mb-6" Elevation="2">
+
+            <!-- SECTION 1: CLASSIFICATION -->
+            <MudText Typo="Typo.h6" Color="Color.Primary" Class="mb-4">1. Property Classification</MudText>
+
+            <MudGrid>
+                <!-- Owned vs Leased -->
+                <MudItem xs="12" md="6">
+                    <MudText><b>Type of Property</b></MudText>
+                    <MudRadioGroup @bind-Value="_property.OwnershipType" T="OwnershipType">
+                        <MudRadio Value="OwnershipType.Owned" Color="Color.Primary">Owned</MudRadio>
+                        <MudRadio Value="OwnershipType.Leased" Color="Color.Secondary">Leased</MudRadio>
+                    </MudRadioGroup>
+                </MudItem>
+
+                <!-- Registered vs Unregistered (Only if Owned) -->
+                @if (_property.OwnershipType == OwnershipType.Owned)
+                {
+                    <MudItem xs="12" md="6">
+                        <MudText><b>Registration Status</b></MudText>
+                        <MudRadioGroup @bind-Value="_property.RegistrationStatus" T="RegistrationStatus ?">
+                            <MudRadio Value="@((RegistrationStatus?)RegistrationStatus.Registered)" Color="Color.Success">Registered</MudRadio>
+                            <MudRadio Value="@((RegistrationStatus?)RegistrationStatus.Unregistered)" Color="Color.Warning">Unregistered</MudRadio>
+                        </MudRadioGroup>
+                    </MudItem>
+                }
+
+                <!-- Category -->
+                <MudItem xs="12" md="6">
+                    <MudSelect T="OwnedPropertyCategory" Label="Property Category" @bind-Value="_property.Category" AnchorOrigin="Origin.BottomCenter" Variant="Variant.Outlined">
+                        @foreach (OwnedPropertyCategory item in Enum.GetValues(typeof(OwnedPropertyCategory)))
+                        {
+                            <MudSelectItem Value="@item">@item.ToString()</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+
+        <!-- SECTION 2: BASIC DETAILS -->
+        <MudPaper Class="pa-6 mb-6" Elevation="2">
+            <MudText Typo="Typo.h6" Color="Color.Primary" Class="mb-4">2. Property Details</MudText>
+
+            <MudGrid>
+                <MudItem xs="12" md="6">
+                    <MudTextField @bind-Value="_property.Name" Label="@(_isCompanyType ? "Company/Property Name" : "Land Name")"
+                                  Variant="Variant.Outlined" Required="true" />
+                </MudItem>
+
+                @if (_isCompanyType)
+                {
+                    <MudItem xs="12" md="3">
+                        <MudTextField @bind-Value="_property.PropertyIdentifier" Label="Identifier (e.g. Shop 1)" Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" md="3">
+                        <MudTextField @bind-Value="_property.FloorNumber" Label="Floor Number" Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <!-- DROPDOWN 1 -->
+                        <MudSelect T="int?" Label="Used By (Company)" @bind-Value="_property.UsedByCompanyId" Variant="Variant.Outlined" AnchorOrigin="Origin.BottomCenter">
+                            @if (_companies == null || !_companies.Any())
+                            {
+                                <MudSelectItem T="int?" Value="null" Disabled="true">No Companies Found</MudSelectItem>
+                            }
+                            else
+                            {
+                                @foreach (var company in _companies)
+                                {
+                                    <MudSelectItem T="int?" Value="@company.CompanyID">@company.CompanyName</MudSelectItem>
+                                }
+                            }
+                        </MudSelect>
+                    </MudItem>
+                }
+
+                <MudItem xs="12" md="6">
+                    <!-- DROPDOWN 2 (Purchaser) -->
+                    <MudSelect T="int" Label="Purchaser (Your Company)" @bind-Value="_property.PurchaserId" Variant="Variant.Outlined" Required="true" AnchorOrigin="Origin.BottomCenter">
+                        @if (_companies == null || !_companies.Any())
+                        {
+                            <MudSelectItem T="int" Value="0" Disabled="true">No Companies Found</MudSelectItem>
+                        }
+                        else
+                        {
+                            @foreach (var company in _companies)
+                            {
+                                <MudSelectItem T="int" Value="@company.CompanyID">@company.CompanyName</MudSelectItem>
+                            }
+                        }
+                    </MudSelect>
+                </MudItem>
+
+                <MudItem xs="12" md="6">
+                    <MudTextField @bind-Value="_property.AreaMeasurement" Label="Area Measurement (SqFt/Acres)" InputType="InputType.Number" Variant="Variant.Outlined" />
+                </MudItem>
+
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="_property.LocationAddress" Label="Full Location Address" Lines="3" Variant="Variant.Outlined" Required="true" />
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+
+        <!-- SECTION 3: PREVIOUS OWNER (Conditional) -->
+        @if (_hasPreviousOwner)
+        {
+            <MudPaper Class="pa-6 mb-6" Elevation="2">
+                <MudText Typo="Typo.h6" Color="Color.Primary" Class="mb-4">3. Previous Owner Details</MudText>
+                <MudGrid>
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="_previousOwner.FullName" Label="Full Name" Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" md="3">
+                        <MudTextField @bind-Value="_previousOwner.PhoneNumber" Label="Phone" Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" md="3">
+                        <MudTextField @bind-Value="_previousOwner.Email" Label="Email" Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12">
+                        <MudTextField @bind-Value="_previousOwner.FullAddress" Label="Owner Address" Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="_previousOwner.IdentityDocNumber" Label="ID Document Number" Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudFileUpload T="IBrowserFile" FilesChanged="UploadOwnerDoc">
+                            <ActivatorContent>
+                                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.CloudUpload">
+                                    Upload ID Doc
+                                </MudButton>
+                            </ActivatorContent>
+                        </MudFileUpload>
+                        @if (!string.IsNullOrEmpty(_previousOwner.IdentityDocFilePath))
+                        {
+                            <MudText Typo="Typo.caption" Color="Color.Success">File Uploaded</MudText>
+                        }
+                    </MudItem>
+                </MudGrid>
+            </MudPaper>
+        }
+
+        <!-- SECTION 4: FINANCIALS -->
+        <MudPaper Class="pa-6 mb-6" Elevation="2">
+            <MudText Typo="Typo.h6" Color="Color.Primary" Class="mb-4">4. Financials & Valuation</MudText>
+
+            <MudGrid>
+                <!-- Cash vs Loan -->
+                <MudItem xs="12" Class="mb-4">
+                    <MudText><b>Purchase Method</b></MudText>
+                    <MudRadioGroup @bind-Value="_financials.PurchaseMethod" T="PurchaseMethod">
+                        <MudRadio Value="PurchaseMethod.Cash">Cash</MudRadio>
+                        <MudRadio Value="PurchaseMethod.Loan">Loan</MudRadio>
+                        <MudRadio Value="PurchaseMethod.Both">Both</MudRadio>
+                    </MudRadioGroup>
+                </MudItem>
+
+                <!-- Value Breakdown -->
+                <MudItem xs="12" md="4">
+                    <MudTextField @bind-Value="_financials.PrincipalAmount" Label="Principal Amount" InputType="InputType.Number" Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.AttachMoney" />
+                </MudItem>
+                <MudItem xs="12" md="4">
+                    <MudTextField @bind-Value="_financials.RegistryTax" Label="Registry Tax" InputType="InputType.Number" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" md="4">
+                    <MudTextField @bind-Value="_financials.OtherCharges" Label="Other Charges" InputType="InputType.Number" Variant="Variant.Outlined" />
+                </MudItem>
+
+                <!-- Loan Specifics -->
+                @if (_financials.PurchaseMethod == PurchaseMethod.Loan || _financials.PurchaseMethod == PurchaseMethod.Both)
+                {
+                    <MudItem xs="12" md="6">
+                        <!-- DROPDOWN 3 (Loan Company) -->
+                        <MudSelect T="int?" Label="Loan Company" @bind-Value="_financials.LoanCompanyId" Variant="Variant.Outlined" AnchorOrigin="Origin.BottomCenter">
+                            @if (_companies == null || !_companies.Any())
+                            {
+                                <MudSelectItem T="int?" Value="null" Disabled="true">No Companies Found</MudSelectItem>
+                            }
+                            else
+                            {
+                                @foreach (var company in _companies)
+                                {
+                                    <MudSelectItem T="int?" Value="@company.CompanyID">@company.CompanyName</MudSelectItem>
+                                }
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="_financials.BankValuation" Label="Bank Valuation Amount" InputType="InputType.Number" Variant="Variant.Outlined" />
+                    </MudItem>
+                }
+            </MudGrid>
+        </MudPaper>
+
+        <!-- SECTION 5: COMPLIANCES -->
+        <MudPaper Class="pa-6 mb-6" Elevation="2">
+            <div class="d-flex align-center justify-space-between mb-4">
+                <MudText Typo="Typo.h6" Color="Color.Primary">5. Compliances</MudText>
+                <MudSwitch @bind-Value="_enableCompliances" Label="Add Compliance Documents" Color="Color.Success" />
+            </div>
+
+            @if (_enableCompliances)
+            {
+                <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Add" OnClick="AddComplianceRow" Class="mb-4">Add Document</MudButton>
+
+                @foreach (var comp in _tempCompliances)
+                {
+                    <MudGrid Class="align-center mb-2">
+                        <MudItem xs="12" md="4">
+                            <MudTextField @bind-Value="comp.DocumentName" Label="Document Name" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12" md="3">
+                            <MudDatePicker @bind-Date="comp.ExpiryDate" Label="Expiry Date" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12" md="4">
+                            <MudFileUpload T="IBrowserFile" FilesChanged="@(args => UploadComplianceDoc(args, comp))">
+                                <ActivatorContent>
+                                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Filled.CloudUpload">
+                                        @(string.IsNullOrEmpty(comp.FilePath) ? "Upload" : "Uploaded")
+                                    </MudButton>
+                                </ActivatorContent>
+                            </MudFileUpload>
+                        </MudItem>
+                        <MudItem xs="12" md="1">
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="@(() => _tempCompliances.Remove(comp))" />
+                        </MudItem>
+                    </MudGrid>
+                }
+            }
+        </MudPaper>
+
+        <!-- SUBMIT -->
+        <div class="d-flex justify-end gap-4">
+            <MudButton Variant="Variant.Outlined" Color="Color.Secondary" Href="/pms/dashboard">Cancel</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SubmitForm" Disabled="@_processing">
+                @if (_processing)
+                {
+                    <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                    <MudText Class="ms-2">Saving...</MudText>
+ }
+                else
+                {
+                    <MudText>Save Property</MudText>
+                }
+            </MudButton>
+        </div>
+
+    </MudForm>
+</MudContainer>
+
+@code {
+    private MudForm _form;
+    private bool _success;
+    private bool _processing;
+    private bool _enableCompliances;
+
+    // Entities
+    private Property _property = new() { Category = OwnedPropertyCategory.Land, OwnershipType = OwnershipType.Owned };
+    private PreviousOwnerDetails _previousOwner = new();
+    private PropertyFinancials _financials = new() { PurchaseMethod = PurchaseMethod.Cash };
+    private List<ComplianceDocument> _tempCompliances = new();
+
+    // Lists
+    private List<Company> _companies = new();
+
+    // Logic Helpers
+    private bool _isCompanyType => _property.Category == OwnedPropertyCategory.CommercialOffice || _property.Category == OwnedPropertyCategory.Flat;
+    private bool _hasPreviousOwner => _property.Category == OwnedPropertyCategory.Land || _property.Category == OwnedPropertyCategory.LandAndBuilding;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            using var context = DbFactory.CreateDbContext();
+            // Using AsNoTracking for speed and to avoid locking conflicts
+            _companies = await context.Companies.AsNoTracking().ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading companies: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private void AddComplianceRow()
+    {
+        _tempCompliances.Add(new ComplianceDocument { DocumentName = "New Doc" });
+    }
+
+    private async Task UploadOwnerDoc(IBrowserFile file)
+    {
+        // Mock upload logic
+        _previousOwner.IdentityDocFilePath = $"uploads/{file.Name}";
+        Snackbar.Add($"Uploaded {file.Name}", Severity.Success);
+    }
+
+    private async Task UploadComplianceDoc(IBrowserFile file, ComplianceDocument doc)
+    {
+        // Mock upload logic
+        doc.FilePath = $"uploads/compliance/{file.Name}";
+        Snackbar.Add($"Uploaded {file.Name}", Severity.Success);
+    }
+
+    private async Task SubmitForm()
+    {
+        await _form.Validate();
+        if (!_success) return;
+
+        _processing = true;
+        try
+        {
+            using var context = DbFactory.CreateDbContext();
+
+            // 1. Attach children to parent
+            if (_hasPreviousOwner) _property.PreviousOwner = _previousOwner;
+            _property.Financials = _financials;
+
+            if (_enableCompliances && _tempCompliances.Any())
+            {
+                _property.Compliances = _tempCompliances;
+            }
+
+            // 2. Save
+            context.Properties.Add(_property);
+            await context.SaveChangesAsync();
+
+            Snackbar.Add("Property Saved Successfully!", Severity.Success);
+            Nav.NavigateTo("/pms");
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _processing = false;
+        }
+    }
+}

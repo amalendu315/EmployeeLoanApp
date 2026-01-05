@@ -1,0 +1,62 @@
+﻿@page "/"
+@using EmployeeLoanApp.Components.Layout
+@layout PublicLayout
+
+<PageTitle>Kalyana Impex | Portal Hub</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Medium" Class="d-flex flex-column align-center justify-center" Style="height: 80vh;">
+
+    <MudText Typo="Typo.h3" Color="Color.Primary" Class="mb-2" Align="Align.Center" Style="font-weight: 700;">
+        Enterprise Portal
+    </MudText>
+    <MudText Typo="Typo.h6" Class="mb-8" Color="Color.Secondary">
+        Select a module to continue
+    </MudText>
+
+    <MudGrid Justify="Justify.Center" Spacing="4">
+        <!-- LOAN CRM BUTTON -->
+        <MudItem xs="12" sm="6" md="5">
+            <MudPaper Elevation="4" Class="pa-8 d-flex flex-column align-center hover-paper cursor-pointer"
+                      @onclick="@(() => NavigateTo("/loan"))">
+                <MudIcon Icon="@Icons.Material.Filled.AttachMoney" Size="Size.Large" Color="Color.Success" Style="font-size: 60px;" />
+                <MudText Typo="Typo.h5" Class="mt-4" Style="font-weight:600;">Loan CRM</MudText>
+                <MudText Typo="Typo.body2" Class="mt-2" Align="Align.Center">
+                    Manage employee loans, approvals, and EMI schedules.
+                </MudText>
+            </MudPaper>
+        </MudItem>
+
+        <!-- PMS BUTTON -->
+        <MudItem xs="12" sm="6" md="5">
+            <MudPaper Elevation="4" Class="pa-8 d-flex flex-column align-center hover-paper cursor-pointer"
+                      @onclick="@(() => NavigateTo("/pms"))">
+                <MudIcon Icon="@Icons.Material.Filled.Domain" Size="Size.Large" Color="Color.Info" Style="font-size: 60px;" />
+                <MudText Typo="Typo.h5" Class="mt-4" Style="font-weight:600;">Property Manager</MudText>
+                <MudText Typo="Typo.body2" Class="mt-2" Align="Align.Center">
+                    Track owned/leased properties, compliance, and expenses.
+                </MudText>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+
+</MudContainer>
+
+<style>
+    .hover-paper {
+        transition: transform 0.2s;
+    }
+
+        .hover-paper:hover {
+            transform: translateY(-5px);
+            background-color: #f8fcff;
+        }
+</style>
+
+@inject NavigationManager Nav
+
+@code {
+    private void NavigateTo(string url)
+    {
+        Nav.NavigateTo(url);
+    }
+}

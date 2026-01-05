@@ -1,12 +1,29 @@
 ﻿@using EmployeeLoanApp.Components.Layout
+@using EmployeeLoanApp.Components.Pages
+@using EmployeeLoanApp.Components.Pages.LMS
+@using EmployeeLoanApp.Components.Pages.PMS
+@inject NavigationManager NavManager
 
 <CascadingAuthenticationState>
     <Router AppAssembly="@typeof(Program).Assembly">
         <Found Context="routeData">
             <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
                 <NotAuthorized>
-                    <!-- If user tries to access a protected page, show Login UI -->
-                    <EmployeeLoanApp.Components.Pages.Login />
+                    <!-- SMART LOGIN REDIRECTION -->
+                    <!-- If the URL contains '/pms', show the PMS Login. Otherwise show Loan Login -->
+                    @if (IsPmsRoute())
+                    {
+                        <div class="d-flex justify-center align-center" style="min-height: 100vh; background-color: #F8FAFC;">
+                            <!-- Create this component next -->
+                            <PmsLogin /> 
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="d-flex justify-center align-center" style="min-height: 100vh; background-color: #F8FAFC;">
+                            <Login />
+                        </div>
+                    }
                 </NotAuthorized>
                 <Authorizing>
                     <div class="d-flex justify-center align-center" style="height:100vh">
@@ -27,3 +44,12 @@
         </NotFound>
     </Router>
 </CascadingAuthenticationState>
+
+@code {
+    private bool IsPmsRoute()
+    {
+        var uri = NavManager.Uri;
+        // Check if the URL segment contains '/pms'
+        return uri.Contains("/pms", StringComparison.OrdinalIgnoreCase);
+    }
+}

@@ -1,0 +1,178 @@
+﻿@page "/pms/financials"
+@using EmployeeLoanApp.Components.Layout
+@using EmployeeLoanApp.Models.PMS
+@using EmployeeLoanApp.Data
+@using Microsoft.EntityFrameworkCore
+@using System.Security.Claims
+@using System.Text.Json
+@layout PMSLayout
+@inject IDbContextFactory<EmployeeLoanContext> DbFactory
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+
+<PageTitle>PMS | Financial Overview</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
+
+    @if (!_hasAccess)
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Filled">You do not have permission to view financial data.</MudAlert>
+    }
+    else
+    {
+        <MudText Typo="Typo.h5" Color="Color.Primary" Class="mb-4"><b>Financial Overview</b></MudText>
+
+        <!-- KPI SUMMARIES -->
+        <MudGrid Class="mb-6">
+            <MudItem xs="12" sm="6" md="3">
+                <MudPaper Class="pa-4 mud-theme-primary">
+                    <MudText>Total Investment (Principal)</MudText>
+                    <MudText Typo="Typo.h4">₹ @_totalPrincipal.ToString("N0")</MudText>
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <MudPaper Class="pa-4 mud-theme-secondary">
+                    <MudText>Total Taxes Paid</MudText>
+                    <MudText Typo="Typo.h4">₹ @_totalTax.ToString("N0")</MudText>
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <MudPaper Class="pa-4 mud-theme-info">
+                    <MudText>Properties on Loan</MudText>
+                    <MudText Typo="Typo.h4">@_propertiesOnLoan</MudText>
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <MudPaper Class="pa-4" Style="background-color:#FFF3E0; color:#E65100;">
+                    <MudText>Total Bank Valuation</MudText>
+                    <MudText Typo="Typo.h4">₹ @_totalValuation.ToString("N0")</MudText>
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+
+        <!-- DETAILED TABLE -->
+        <MudTable Items="@_financials" Dense="true" Hover="true" Striped="true" Filter="new Func<PropertyFinancials, bool>(FilterFunc)">
+            <ToolBarContent>
+                <MudText Typo="Typo.h6">Detailed Expenses</MudText>
+                <MudSpacer />
+                <MudTextField @bind-Value="_searchString" Placeholder="Search Property..." Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0"></MudTextField>
+            </ToolBarContent>
+            <HeaderContent>
+                <MudTh>Property</MudTh>
+                <MudTh>Method</MudTh>
+                <MudTh>Principal</MudTh>
+                <MudTh>Tax + Others</MudTh>
+                <MudTh>Total Cost</MudTh>
+                <MudTh>Bank Valuation</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Property">
+                    <MudLink Href="@($"/pms/properties/view/{context.PropertyId}")" Typo="Typo.body2">
+                        <b>@context.Property.Name</b>
+                    </MudLink>
+                    @if (context.LoanCompanyId != null)
+                    {
+                        <MudText Typo="Typo.caption" Display="Display.Block" Color="Color.Info">Loan via Bank</MudText>
+                    }
+                </MudTd>
+                <MudTd DataLabel="Method">
+                    <MudChip T="string" Size="Size.Small" Color="@(context.PurchaseMethod == PurchaseMethod.Cash ? Color.Success : Color.Warning)">@context.PurchaseMethod</MudChip>
+                </MudTd>
+                <MudTd DataLabel="Principal">₹ @context.PrincipalAmount.ToString("N0")</MudTd>
+                <MudTd DataLabel="Tax">₹ @((context.RegistryTax + context.OtherCharges).ToString("N0"))</MudTd>
+                <MudTd DataLabel="Total"><b>₹ @((context.PrincipalAmount + context.RegistryTax + context.OtherCharges).ToString("N0"))</b></MudTd>
+                <MudTd DataLabel="Valuation">
+                    @if (context.BankValuation > 0)
+                    {
+                        <span style="color:green">₹ @context.BankValuation?.ToString("N0")</span>
+                    }
+                    else
+                    {
+                        <span style="color:#ccc">-</span>
+                    }
+                </MudTd>
+            </RowTemplate>
+            <PagerContent>
+                <MudTablePager />
+            </PagerContent>
+        </MudTable>
+    }
+</MudContainer>
+
+@code {
+    private List<PropertyFinancials> _financials = new();
+    private bool _hasAccess = false;
+    private string _searchString = "";
+
+    // Aggregates
+    private decimal _totalPrincipal;
+    private decimal _totalTax;
+    private int _propertiesOnLoan;
+    private decimal _totalValuation;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // 1. Security Check
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.Identity?.IsAuthenticated == true)
+        {
+            // FIX: Robust check for Super Admin (Case Insensitive + Role check)
+            if (user.IsInRole("SuperAdmin") ||
+                user.HasClaim(c => c.Type == "IsSuperAdmin" && string.Equals(c.Value, "true", StringComparison.OrdinalIgnoreCase)))
+            {
+                _hasAccess = true;
+            }
+            else
+            {
+                var accessJson = user.FindFirst("AccessConfig")?.Value;
+                if (!string.IsNullOrEmpty(accessJson))
+                {
+                    try
+                    {
+                        var perms = JsonSerializer.Deserialize<Dictionary<string, bool>>(accessJson);
+                        if (perms != null && perms.ContainsKey("ViewFinancials") && perms["ViewFinancials"])
+                        {
+                            _hasAccess = true;
+                        }
+                    }
+                    catch { /* Ignore JSON errors */ }
+                }
+            }
+        }
+
+        if (!_hasAccess)
+        {
+            Snackbar.Add("Access Denied: Financial permissions required.", Severity.Error);
+            Nav.NavigateTo("/pms/dashboard");
+            return;
+        }
+
+        // 2. Load Data
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        using var context = DbFactory.CreateDbContext();
+        _financials = await context.PropertyFinancials
+            .Include(f => f.Property)
+            .AsNoTracking()
+            .ToListAsync();
+
+        // Calculate Totals
+        _totalPrincipal = _financials.Sum(f => f.PrincipalAmount);
+        _totalTax = _financials.Sum(f => f.RegistryTax + f.OtherCharges);
+        _propertiesOnLoan = _financials.Count(f => f.PurchaseMethod != PurchaseMethod.Cash);
+        _totalValuation = _financials.Sum(f => f.BankValuation ?? 0);
+    }
+
+    private bool FilterFunc(PropertyFinancials element)
+    {
+        if (string.IsNullOrWhiteSpace(_searchString)) return true;
+        if (element.Property.Name.Contains(_searchString, StringComparison.OrdinalIgnoreCase)) return true;
+        return false;
+    }
+}

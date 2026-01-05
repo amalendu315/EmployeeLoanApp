@@ -1,0 +1,189 @@
+﻿@page "/pms/admin/users"
+@using EmployeeLoanApp.Components.Layout
+@using EmployeeLoanApp.Models.PMS
+@using EmployeeLoanApp.Data
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Authorization
+@using EmployeeLoanApp.Services.PMS
+@using System.Text.Json
+@layout PMSLayout
+@inject IDbContextFactory<EmployeeLoanContext> DbFactory
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@attribute [Authorize(Roles = "SuperAdmin")]
+
+<PageTitle>PMS | Admin Users</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+    <div class="d-flex justify-space-between align-center mb-6">
+        <div>
+            <MudText Typo="Typo.h5" Color="Color.Primary" Style="font-weight:700;">User Management</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">Manage granular access to PMS data</MudText>
+        </div>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PersonAdd" OnClick="OpenAddUserDialog" Elevation="2">Create User</MudButton>
+    </div>
+
+    <MudPaper Elevation="2" Class="pa-4">
+        <MudTable Items="@_users" Hover="true" Striped="true" Elevation="0">
+            <HeaderContent>
+                <MudTh>User</MudTh>
+                <MudTh>Role</MudTh>
+                <MudTh>Company Access</MudTh>
+                <MudTh>Property Access</MudTh>
+                <MudTh Style="text-align:right">Actions</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="User">
+                    <div class="d-flex align-center">
+                        <MudAvatar Color="Color.Primary" Variant="Variant.Filled" Size="Size.Small" Class="mr-3">
+                            @(context.FullName.Substring(0, 1).ToUpper())
+                        </MudAvatar>
+                        <div>
+                            <MudText Typo="Typo.subtitle2" Style="font-weight:600;">@context.FullName</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">@@@context.Username</MudText>
+                        </div>
+                    </div>
+                </MudTd>
+                <MudTd DataLabel="Role">
+                    @if (context.IsSuperAdmin)
+                    {
+                        <MudChip T="string" Color="Color.Error" Size="Size.Small" Icon="@Icons.Material.Filled.Shield">Super Admin</MudChip>
+                    }
+                    else
+                    {
+                        <MudChip T="string" Color="Color.Success" Size="Size.Small" Icon="@Icons.Material.Filled.Person">Manager</MudChip>
+                    }
+                </MudTd>
+                <MudTd DataLabel="Company Access">
+                    @if (context.IsSuperAdmin)
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Success"><b>ALL</b></MudText>
+                    }
+                    else
+                    {
+                        var config = ParseConfig(context.AccessConfigJson);
+                        if (config.ViewAllCompanies)
+                        {
+                            <MudChip T="string" Color="Color.Info" Size="Size.Small" Variant="Variant.Outlined">All Companies</MudChip>
+                        }
+                        else if (config.AllowedCompanyIds.Any())
+                        {
+                            <MudChip T="string" Color="Color.Info" Size="Size.Small" Variant="Variant.Outlined">@config.AllowedCompanyIds.Count Selected</MudChip>
+                        }
+                        else
+                        {
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">None</MudText>
+                        }
+                    }
+                </MudTd>
+                <MudTd DataLabel="Property Access">
+                    @if (context.IsSuperAdmin)
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Success"><b>ALL (Full Control)</b></MudText>
+                    }
+                    else
+                    {
+                        var config = ParseConfig(context.AccessConfigJson);
+                        if (config.ViewAllProperties)
+                        {
+                            <MudChip T="string" Color="Color.Primary" Size="Size.Small" Variant="Variant.Outlined">All Properties</MudChip>
+                            @if (config.GlobalFinancialsAccess)
+                            {
+                                <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Text">$$$</MudChip>
+                            }
+                        }
+                        else if (config.SpecificProperties.Any())
+                        {
+                            <MudTooltip Text="@GetPropertyTooltip(config)">
+                                <MudChip T="string" Color="Color.Primary" Size="Size.Small" Variant="Variant.Outlined">@config.SpecificProperties.Count Properties</MudChip>
+                            </MudTooltip>
+
+                            // Show indicators if they have sub-access
+                            int finCount = config.SpecificProperties.Count(p => p.CanViewFinancials);
+                            if (finCount > 0)
+                            {
+                                <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Text">Fin: @finCount</MudChip>
+                            }
+                        }
+                        else
+                        {
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">None</MudText>
+                        }
+                    }
+                </MudTd>
+                <MudTd DataLabel="Actions" Style="text-align:right">
+                    @if (!context.IsSuperAdmin)
+                    {
+                        <MudTooltip Text="Delete User">
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => DeleteUser(context))" />
+                        </MudTooltip>
+                    }
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    </MudPaper>
+</MudContainer>
+
+@code {
+    private List<PmsUser> _users = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUsers();
+    }
+
+    private async Task LoadUsers()
+    {
+        using var context = DbFactory.CreateDbContext();
+        _users = await context.PmsUsers.AsNoTracking().OrderByDescending(u => u.IsSuperAdmin).ToListAsync();
+    }
+
+    private PmsAccessConfig ParseConfig(string? json)
+    {
+        if (string.IsNullOrEmpty(json)) return new PmsAccessConfig();
+        try
+        {
+            return JsonSerializer.Deserialize<PmsAccessConfig>(json) ?? new PmsAccessConfig();
+        }
+        catch
+        {
+            return new PmsAccessConfig();
+        }
+    }
+
+    private string GetPropertyTooltip(PmsAccessConfig config)
+    {
+        var names = config.SpecificProperties.Select(p => p.PropertyName).Take(5).ToList();
+        if (config.SpecificProperties.Count > 5) names.Add("...");
+        return string.Join(", ", names);
+    }
+
+    private async Task OpenAddUserDialog()
+    {
+        var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
+        var dialog = DialogService.Show<UserDialog>("Create New User", options);
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            await LoadUsers(); // Refresh list on success
+        }
+    }
+
+    private async Task DeleteUser(PmsUser user)
+    {
+        bool? result = await DialogService.ShowMessageBox(
+            "Warning",
+            $"Delete user {user.Username}?",
+            yesText: "Delete", cancelText: "Cancel");
+
+        if (result == true)
+        {
+            using var context = DbFactory.CreateDbContext();
+            context.PmsUsers.Remove(user);
+            await context.SaveChangesAsync();
+            Snackbar.Add("User deleted", Severity.Success);
+            await LoadUsers();
+        }
+    }
+}

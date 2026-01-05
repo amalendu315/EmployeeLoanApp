@@ -1,4 +1,4 @@
-﻿@page "/"
+﻿@page "/loan"
 @using EmployeeLoanApp.Services
 @using EmployeeLoanApp.Models
 @using System.IO
@@ -14,11 +14,24 @@
 
 <style>
     .loan-sheet-drawer {
-        width: 800px;
+        width: 900px;
         padding: 24px;
-        background: #FFFFFF;
+        background: #F3F4F6; /* Gray background behind paper */
         height: 100%;
         overflow-y: auto;
+    }
+
+    .agreement-paper {
+        background: white;
+        width: 100%;
+        max-width: 210mm; /* A4 Width */
+        min-height: 297mm; /* A4 Height */
+        margin: 0 auto;
+        padding: 20mm; /* Standard Print Padding */
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        border: 1px solid #E5E7EB;
+        font-family: 'Times New Roman', serif;
+        color: #000;
     }
 
     .agreement-preview {
@@ -74,7 +87,7 @@
     .dashboard-table-container {
         background: white;
         border-radius: 16px;
-        border: 1px solid #E2E8F0;
+        /* border: 1px solid #E2E8F0; */
         overflow: hidden;
     }
 
@@ -232,22 +245,18 @@
 <!-- 1. AGREEMENT PREVIEW SHEET -->
 <MudDrawer @bind-Open="_agreementDrawerOpen" Anchor="Anchor.End" Elevation="1" Variant="DrawerVariant.Temporary" Width="900px">
     <div class="loan-sheet-drawer">
-        <div class="sheet-header">
-            <div>
-                <MudText Typo="Typo.h5"><b>Review Agreement</b></MudText>
-                <MudText Typo="Typo.caption" Color="Color.Secondary">Preview the document before sending to employee.</MudText>
-            </div>
-            <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="@(() => _agreementDrawerOpen = false)" />
+        <div class="d-flex justify-space-between align-center mb-4 px-4 pt-4">
+            <MudText Typo="Typo.h5" Style="color:white;"><b>Review Agreement</b></MudText>
+            <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Surface" OnClick="@(() => _agreementDrawerOpen = false)" />
         </div>
 
-        <!-- HTML Preview -->
-        <div class="agreement-preview mb-6">
+        <div class="agreement-paper">
             @((MarkupString)_agreementHtml)
         </div>
 
-        <div class="d-flex justify-end gap-3 p-4" style="border-top:1px solid #eee; position:sticky; bottom:0; background:white;">
-            <MudButton Variant="Variant.Outlined" OnClick="@(() => _agreementDrawerOpen = false)">Close</MudButton>
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SendAgreementEmail" StartIcon="@Icons.Material.Filled.Send" Size="Size.Large">Send Agreement to Employee</MudButton>
+        <div class="d-flex justify-end gap-3 mt-6 pb-6 px-4">
+            <MudButton Variant="Variant.Filled" Color="Color.Surface" OnClick="@(() => _agreementDrawerOpen = false)">Close</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SendAgreementEmail" StartIcon="@Icons.Material.Filled.Send" Size="Size.Large">Send Agreement</MudButton>
         </div>
     </div>
 </MudDrawer>
@@ -360,9 +369,138 @@
         if (app.Employee != null)
         {
             // Generate HTML locally for preview
-            _agreementHtml = EmailService.GenerateAgreementHtml(app.Employee, app, approval);
+            _agreementHtml = GenerateAgreementPreview(app.Employee, app, approval);
             _agreementDrawerOpen = true;
         }
+    }
+
+    private string GenerateAgreementPreview(Employee emp, LoanApplication loan, LoanApproval approval)
+    {
+        string date = DateTime.Now.ToString("dd-MMM-yyyy");
+        string loanAmount = approval.SanctionedAmount.ToString("N0");
+        string emiAmount = approval.SanctionedEMIAmount.ToString("N0");
+        string address = emp.ResidentialAddress ?? "N/A";
+
+        return $@"
+        <div style='font-family: ""Times New Roman"", serif; color: #000; line-height: 1.2;'>
+            <h3 style='text-align: center; text-transform: uppercase; text-decoration: underline; font-size: 16px; margin-bottom: 20px;'>SUPPLEMENTAL PERSONAL LOAN AGREEMENT</h3>
+
+            <p>This Supplemental Business Loan Agreement (“Agreement”) is made and executed at the place and on the date (“Execution Date”) mentioned in Schedule I hereto.</p>
+
+            <p style='font-weight: bold;'>BY AND BETWEEN</p>
+
+            <p><b>KALYANA IMPEX PRIVATE LIMITED</b>, a company registered under the provisions of the Companies Act 2013 and registered with the Reserve Bank of India (“RBI”) as a Non-Banking Financial Company (“NBFC” License No – B.05.03683) having its registered office at N/84/4/2283, ASMI SQUARE 2ND MILE SEVOKE ROAD, District: Jalpaiguri, Pin code: 734001 in Ward Number 43, West Bengal (hereinafter collectively referred to as “Lender” which expression, unless repugnant to the context, shall be deemed to include its successors, transferee, administrators, executors and permitted assigns), of the <b>First part</b>;</p>
+
+            <p style='font-weight: bold;'>AND</p>
+
+            <p>The person/entity as more particularly described and identified as the Borrower in Schedule I hereto (hereinafter referred to as “Borrower” which expression shall unless repugnant to the context or contrary to the meaning thereof means and include legal heir, successors, representative, agents and permitted assignees) of the <b>Second Part</b>.</p>
+
+            <p>Hereinafter, Lender and Borrower shall be referred to individually as “Party” and collectively as “Parties”.</p>
+
+            <p><b>WHEREAS,</b></p>
+            <ol style='list-style-type: decimal; padding-left: 20px;'>
+                <li>The Parties have entered into a Personal Loan Agreement dated <b>{date}</b> for loan account no. <b>{loan.ApplicationID}</b> along with General Terms and conditions and other financing documents, as amended from time to time (“Principal loan agreement”) as per which the Lender has provided a Personal Loan to the Borrower and the Borrower, has availed the same.</li>
+                <li>Subsequently, the Borrower has requested the Lender to Personal Loan the facility for a period mentioned in Schedule I with the same terms & conditions to address the seasonal requirement of its Personal Use.</li>
+                <li>The Lender has agreed to this request, which will apply exclusively to the specific period.</li>
+                <li>After this period, the facility will be closed.</li>
+                <li>To give effect to aforesaid, the parties hereto have agreed to execute these presents.</li>
+            </ol>
+
+            <p><b>NOW, THEREFORE THE PARTIES AGREE AS FOLLOWS:</b></p>
+            <ol style='list-style-type: decimal; padding-left: 20px;'>
+                <li>The details of Loan, commercials, and other relevant information for the same as detailed in the Schedule below shall be added to the Agreement.</li>
+                <li>The Borrower understands and agrees that the loan amount is for a specific period only, as specified in Schedule-I.</li>
+                <li>Upon completion of the period, the facility limit shall be closed as outlined.</li>
+                <li>The Borrower declares that there has been no change in the existing KYC information.</li>
+                <li>If any changes have occurred, they have been promptly informed and updated in the Lender’s records.</li>
+                <li>The information described/detailed in the schedule below is accurate and up to date.</li>
+                <li>The Agreement shall become effective from the Agreement Execution Date (“Agreement Effective Date”).</li>
+                <li>It shall be in force unless terminated by the mutual written consent of all the Parties subject to the issuance of the No Objection Certificate (“NOC”) for the respective loan by the Lender upon complete repayment of the loan amount by the Borrower.</li>
+                <li>The Borrower agrees and declares that save as except what has been agreed between the parties under this agreement for modifying/amending/supplementing the Principal Loan agreement, it is agreed, declared and confirmed that all the covenants, confirmations, undertakings, and warranties of the Borrower under the Principal loan agreement or any transactional documents shall be valid, subsisting, and binding on the parties hereto as if the said terms and conditions are reproduced herein verbatim and confirmed.</li>
+                <li>The Borrower understands and agrees that any security, repayment instrument, or security instrument created/registered/submitted with the Lender shall also continue to be the security/repayment instrument for the existing/enhanced/renewed/modified facility under this agreement and shall be enforceable for all amounts which are now or may any time hereafter become due and owing by the Borrower to the Lender.</li>
+                <li>The terms of this Agreement shall be read in conjunction with the Principal Loan Agreement, and other transactional documents executed for availing the facility as if the conditions of this agreement were incorporated in the facility agreement by way of addition.</li>
+                <li>To the extent of any inconsistency between the terms of this Agreement and the terms of the Principal loan agreement, the provisions of this Agreement shall prevail.</li>
+            </ol>
+
+            <div style='text-align: center; font-weight: bold; margin-top: 30px; text-decoration: underline;'>SCHEDULE -I</div>
+            <div style='text-align: center; font-weight: bold;'>Detailed Terms of Loan/Key Fact Statement</div>
+
+            <table style='width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 13px; border: 1px solid black;'>
+                <tr>
+                    <th style='border: 1px solid black; padding: 5px; width: 50px;'>Sr.</th>
+                    <th style='border: 1px solid black; padding: 5px; width: 40%;'>Particulars</th>
+                    <th style='border: 1px solid black; padding: 5px;'>Details</th>
+                </tr>
+                <tr><td style='border: 1px solid black; padding: 5px;'>1.</td><td style='border: 1px solid black; padding: 5px;'>Agreement Execution Date</td><td style='border: 1px solid black; padding: 5px;'>{date}</td></tr>
+                <tr><td style='border: 1px solid black; padding: 5px;'>2.</td><td style='border: 1px solid black; padding: 5px;'>Agreement Execution Place</td><td style='border: 1px solid black; padding: 5px;'>Siliguri</td></tr>
+                <tr>
+                    <td style='border: 1px solid black; padding: 5px;'>3.</td>
+                    <td style='border: 1px solid black; padding: 5px;'><b>Details of the Borrowing</b><br/>Name<br/>Address<br/>PAN<br/>Contact number<br/>Email ID</td>
+                    <td style='border: 1px solid black; padding: 5px;'>
+                        <br/><b>{emp.FullName}</b><br/>{address}<br/>{emp.PANNumber}<br/>{emp.PhoneNumber}<br/>{emp.Email}
+                    </td>
+                </tr>
+                <tr>
+                    <td style='border: 1px solid black; padding: 5px;'>4.</td>
+                    <td style='border: 1px solid black; padding: 5px;'><b>Details of the Guarantor</b><br/>Name<br/>Address<br/>PAN<br/>Contact number<br/>Email ID</td>
+                    <td style='border: 1px solid black; padding: 5px;'><br/>N/A<br/>-</td>
+                </tr>
+                <tr><td colspan='3' style='border: 1px solid black; padding: 5px; font-weight: bold; background:#f0f0f0;'>Details of Loan</td></tr>
+                <tr><td style='border: 1px solid black; padding: 5px;'>9.</td><td style='border: 1px solid black; padding: 5px;'>Loan Amount</td><td style='border: 1px solid black; padding: 5px;'><b>INR {loanAmount} /-</b></td></tr>
+                <tr><td style='border: 1px solid black; padding: 5px;'>10.</td><td style='border: 1px solid black; padding: 5px;'>Additional Loan amount</td><td style='border: 1px solid black; padding: 5px;'>NIL</td></tr>
+                <tr><td style='border: 1px solid black; padding: 5px;'>11.</td><td style='border: 1px solid black; padding: 5px;'>Total Loan Amount</td><td style='border: 1px solid black; padding: 5px;'><b>INR {loanAmount} /-</b></td></tr>
+                <tr><td style='border: 1px solid black; padding: 5px;'>11.</td><td style='border: 1px solid black; padding: 5px;'>Monthly EMI amount</td><td style='border: 1px solid black; padding: 5px;'><b>INR {emiAmount} /-</b></td></tr>
+                <tr><td style='border: 1px solid black; padding: 5px;'>12.</td><td style='border: 1px solid black; padding: 5px;'>Tenure for the loan amount</td><td style='border: 1px solid black; padding: 5px;'>{approval.ApprovedTenureMonths} Months</td></tr>
+                <tr><td style='border: 1px solid black; padding: 5px;'>13.</td><td style='border: 1px solid black; padding: 5px;'>Purpose of the Loan</td><td style='border: 1px solid black; padding: 5px;'>{loan.PurposeOfLoan}</td></tr>
+                <tr>
+                    <td style='border: 1px solid black; padding: 5px;'>14.</td>
+                    <td style='border: 1px solid black; padding: 5px;'>Details of disbursed bank account</td>
+                    <td style='border: 1px solid black; padding: 5px;'>{loan.AccountNumber} ({loan.BankName})<br/>Holder: {loan.AccountHolderName}</td>
+                </tr>
+                <tr><td style='border: 1px solid black; padding: 5px;'>15.</td><td style='border: 1px solid black; padding: 5px;'>Repayment Bank details</td><td style='border: 1px solid black; padding: 5px;'>Kalyana Impex Pvt Ltd, Axis Bank</td></tr>
+                <tr><td style='border: 1px solid black; padding: 5px;'>16.</td><td style='border: 1px solid black; padding: 5px;'>Repayment Frequency</td><td style='border: 1px solid black; padding: 5px;'>Monthly</td></tr>
+                <tr><td style='border: 1px solid black; padding: 5px;'>17.</td><td style='border: 1px solid black; padding: 5px;'>Processing Fees</td><td style='border: 1px solid black; padding: 5px;'>Nil</td></tr>
+                <tr><td style='border: 1px solid black; padding: 5px;'>18.</td><td style='border: 1px solid black; padding: 5px;'>Interest Rate/ROI (P.M.)</td><td style='border: 1px solid black; padding: 5px;'>9%</td></tr>
+                <tr><td style='border: 1px solid black; padding: 5px;'>19.</td><td style='border: 1px solid black; padding: 5px;'>Repayment of Interest</td><td style='border: 1px solid black; padding: 5px;'>Included in EMI</td></tr>
+                <tr><td style='border: 1px solid black; padding: 5px;'>19.</td><td style='border: 1px solid black; padding: 5px;'>Penal Charges on Default</td><td style='border: 1px solid black; padding: 5px;'>2% per month on overdue</td></tr>
+                <tr><td style='border: 1px solid black; padding: 5px;'>20.</td><td style='border: 1px solid black; padding: 5px;'>Prepayment Charges</td><td style='border: 1px solid black; padding: 5px;'>Nil</td></tr>
+                <tr><td style='border: 1px solid black; padding: 5px;'>21.</td><td style='border: 1px solid black; padding: 5px;'>NACH Dishonor Charges</td><td style='border: 1px solid black; padding: 5px;'>Rs. 500/-</td></tr>
+                <tr><td style='border: 1px solid black; padding: 5px;'>22.</td><td style='border: 1px solid black; padding: 5px;'>Cheque Dishonor Charges</td><td style='border: 1px solid black; padding: 5px;'>Rs. 500/-</td></tr>
+                <tr><td style='border: 1px solid black; padding: 5px;'>23.</td><td style='border: 1px solid black; padding: 5px;'>Cheque or NACH swap Charges</td><td style='border: 1px solid black; padding: 5px;'>NIL</td></tr>
+                <tr><td style='border: 1px solid black; padding: 5px;'>24.</td><td style='border: 1px solid black; padding: 5px;'>Repayment of Charges</td><td style='border: 1px solid black; padding: 5px;'>By Guarantor</td></tr>
+                <tr>
+                    <td style='border: 1px solid black; padding: 5px;'>24.</td>
+                    <td style='border: 1px solid black; padding: 5px;'>Details of Grievance Redressal Officer</td>
+                    <td style='border: 1px solid black; padding: 5px;'>Name: _____________<br/>Address: _____________<br/>Email ID: _____________<br/>Contact number: _____________</td>
+                </tr>
+            </table>
+
+            <br/><br/>
+            <div style='font-weight: bold; margin-bottom: 20px;'>Acknowledgment & Acceptance</div>
+            <table style='width: 100%; border: none;'>
+                <tr style='border: none;'>
+                    <td style='border: none; width: 50%; vertical-align: top;'>
+                        <b>For Kalyana Impex Pvt. Ltd.</b><br/><br/><br/><br/>
+                        (Sashi Kant Agarwal)<br/>
+                        [Director)<br/>
+                        Date: {date}
+                    </td>
+                    <td style='border: none; width: 50%; text-align: right; vertical-align: top;'>
+                        <b>Accepted By Borrower</b><br/><br/><br/><br/>
+                        ({emp.FullName})<br/>
+                        <br/><br/>
+                        <b>Accepted By Guarantor</b><br/><br/>
+                        AIR IQ<br/>
+                        Partner
+                    </td>
+                </tr>
+                <tr style='border: none;'>
+                   <td colspan='2' style='border: none; padding-top: 20px;'>
+                      Siliguri
+                   </td>
+                </tr>
+            </table>
+        </div>";
     }
 
     private async Task SendAgreementEmail()

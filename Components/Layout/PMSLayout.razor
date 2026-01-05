@@ -1,24 +1,26 @@
 ﻿@inherits LayoutComponentBase
+@using EmployeeLoanApp.Components.Pages.PMS
 @using Microsoft.AspNetCore.Components.Authorization
+@using EmployeeLoanApp.Services.PMS
 @using EmployeeLoanApp.Services
-@inject AuthService AuthService
-@inject AuthenticationStateProvider AuthStateProvider
+@inject PMSAuthService AuthService
 @inject NavigationManager Nav
+@inject AuthenticationStateProvider AuthStateProvider
 
-<MudThemeProvider Theme="_crmTheme" />
+<MudThemeProvider Theme="_pmsTheme" />
 <MudDialogProvider />
 <MudSnackbarProvider />
 <MudPopoverProvider />
 
 <AuthorizeView>
     <Authorized>
-        <!-- SYSTEM GUARD: Only show layout if logged into LMS -->
-        @if (context.User.HasClaim(c => c.Type == "SystemName" && c.Value == "LMS"))
+        <!-- SYSTEM GUARD: Only show layout if logged into PMS -->
+        @if (context.User.HasClaim(c => c.Type == "SystemName" && c.Value == "PMS"))
         {
             <MudLayout>
                 <MudAppBar Elevation="1" Color="Color.Surface" Fixed="true" Class="border-b-2">
                     <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Primary" Edge="Edge.Start" OnClick="@((e) => DrawerToggle())" />
-                    <MudText Typo="Typo.h5" Color="Color.Primary" Class="ml-3" Style="font-weight:600;">Loan CRM</MudText>
+                    <MudText Typo="Typo.h5" Color="Color.Primary" Class="ml-3" Style="font-weight:600;">Property Management</MudText>
                     <MudSpacer />
                     <div class="d-flex align-center gap-4">
                         <MudText Color="Color.Secondary" Typo="Typo.body2"><b>@context.User.Identity?.Name</b></MudText>
@@ -28,10 +30,19 @@
 
                 <MudDrawer @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Always" Elevation="2">
                     <MudNavMenu>
-                        <MudNavLink Href="/loan/dashboard" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard">Dashboard</MudNavLink>
-                        <MudNavLink Href="/loan/apply" Icon="@Icons.Material.Filled.NoteAdd">New Application</MudNavLink>
-                        <MudNavLink Href="/loan/employees" Icon="@Icons.Material.Filled.People">Employee Directory</MudNavLink>
-                        <MudNavLink Href="/loan/reports" Icon="@Icons.Material.Filled.Assessment">Reports</MudNavLink>
+                        <MudNavLink Href="/pms" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard">Dashboard</MudNavLink>
+
+                        <MudNavGroup Title="Manage Properties" Icon="@Icons.Material.Filled.Domain" Expanded="true">
+                            <MudNavLink Href="/pms/properties/owned" Icon="@Icons.Material.Filled.Home">Owned Properties</MudNavLink>
+                            <MudNavLink Href="/pms/properties/leased" Icon="@Icons.Material.Filled.Business">Leased Properties</MudNavLink>
+                        </MudNavGroup>
+
+                        <MudNavLink Href="/pms/reports" Icon="@Icons.Material.Filled.Assessment">Reports</MudNavLink>
+
+                        @if (context.User.IsInRole("SuperAdmin"))
+                        {
+                            <MudNavLink Href="/pms/admin/users" Icon="@Icons.Material.Filled.SupervisedUserCircle">User Management</MudNavLink>
+                        }
                     </MudNavMenu>
                 </MudDrawer>
 
@@ -44,15 +55,15 @@
         }
         else
         {
-            <!-- Authenticated in PMS, but Anonymous in LMS -> Show Login -->
+            <!-- Authenticated in LMS, but Anonymous in PMS -> Show Login -->
             <div class="d-flex justify-center align-center" style="min-height: 100vh; background-color: #F8FAFC;">
-                <EmployeeLoanApp.Components.Pages.LMS.Login />
+                <PmsLogin />
             </div>
         }
     </Authorized>
     <NotAuthorized>
         <div class="d-flex justify-center align-center" style="min-height: 100vh; background-color: #F8FAFC;">
-            <EmployeeLoanApp.Components.Pages.LMS.Login />
+            <PmsLogin />
         </div>
     </NotAuthorized>
 </AuthorizeView>
@@ -65,12 +76,12 @@
     {
         if (AuthStateProvider is UnifiedAuthenticationStateProvider unifiedProvider)
         {
-            await unifiedProvider.LogoutSpecificAsync("loan"); // Only kill Loan Session
+            await unifiedProvider.LogoutSpecificAsync("pms"); // Only kill PMS Session
         }
-        Nav.NavigateTo("/loan", forceLoad: true);
+        Nav.NavigateTo("/pms", forceLoad: true);
     }
 
-    private MudTheme _crmTheme = new MudTheme()
+    private MudTheme _pmsTheme = new MudTheme()
     {
         PaletteLight = new PaletteLight()
         {

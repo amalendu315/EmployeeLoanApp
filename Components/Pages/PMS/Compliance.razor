@@ -1,0 +1,120 @@
+﻿@page "/pms/compliance"
+@using EmployeeLoanApp.Components.Layout
+@using EmployeeLoanApp.Models.PMS
+@using EmployeeLoanApp.Data
+@using Microsoft.EntityFrameworkCore
+@layout PMSLayout
+@inject IDbContextFactory<EmployeeLoanContext> DbFactory
+
+<PageTitle>PMS | Compliance</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
+    <MudText Typo="Typo.h5" Color="Color.Primary" Class="mb-4"><b>Compliance Monitor</b></MudText>
+
+    <MudGrid Class="mb-6">
+        <MudItem xs="12" sm="4">
+            <MudPaper Class="pa-4 d-flex align-center justify-space-between mud-theme-error">
+                <div>
+                    <MudText>Expired</MudText>
+                    <MudText Typo="Typo.h4">@_expiredCount</MudText>
+                </div>
+                <MudIcon Icon="@Icons.Material.Filled.Warning" Size="Size.Large" />
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" sm="4">
+            <MudPaper Class="pa-4 d-flex align-center justify-space-between" Style="background-color:#FFF8E1; color:#F57F17;">
+                <div>
+                    <MudText>Expiring Soon (30 Days)</MudText>
+                    <MudText Typo="Typo.h4">@_expiringSoonCount</MudText>
+                </div>
+                <MudIcon Icon="@Icons.Material.Filled.AccessTime" Size="Size.Large" />
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" sm="4">
+            <MudPaper Class="pa-4 d-flex align-center justify-space-between mud-theme-success">
+                <div>
+                    <MudText>Valid Documents</MudText>
+                    <MudText Typo="Typo.h4">@_validCount</MudText>
+                </div>
+                <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Large" />
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+
+    <MudTable Items="@_documents" Dense="true" Hover="true" Filter="new Func<ComplianceDocument, bool>(FilterFunc)">
+        <ToolBarContent>
+            <MudText Typo="Typo.h6">All Documents</MudText>
+            <MudSpacer />
+            <MudTextField @bind-Value="_searchString" Placeholder="Search Docs..." Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0"></MudTextField>
+        </ToolBarContent>
+        <HeaderContent>
+            <MudTh>Property</MudTh>
+            <MudTh>Document Name</MudTh>
+            <MudTh>Expiry Date</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh>Action</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Property">
+                <MudLink Href="@($"/pms/properties/view/{context.PropertyId}")">@context.Property.Name</MudLink>
+            </MudTd>
+            <MudTd DataLabel="Name">@context.DocumentName</MudTd>
+            <MudTd DataLabel="Expiry">@(context.ExpiryDate?.ToString("dd MMM yyyy") ?? "N/A")</MudTd>
+            <MudTd DataLabel="Status">
+                @if (context.ExpiryDate.HasValue && context.ExpiryDate.Value < DateTime.Now)
+                {
+                    <MudChip T="string" Color="Color.Error" Size="Size.Small">Expired</MudChip>
+                }
+                else if (context.ExpiryDate.HasValue && context.ExpiryDate.Value < DateTime.Now.AddDays(30))
+                {
+                    <MudChip T="string" Color="Color.Warning" Size="Size.Small">Expiring Soon</MudChip>
+                }
+                else
+                {
+                    <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Text">Valid</MudChip>
+                }
+            </MudTd>
+            <MudTd DataLabel="Action">
+                @if (!string.IsNullOrEmpty(context.FilePath))
+                {
+                    <MudIconButton Icon="@Icons.Material.Filled.Download" Color="Color.Primary" Size="Size.Small" />
+                }
+            </MudTd>
+        </RowTemplate>
+        <PagerContent>
+            <MudTablePager />
+        </PagerContent>
+    </MudTable>
+</MudContainer>
+
+@code {
+    private List<ComplianceDocument> _documents = new();
+    private string _searchString = "";
+    private int _expiredCount;
+    private int _expiringSoonCount;
+    private int _validCount;
+
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+        _documents = await context.ComplianceDocuments
+            .Include(d => d.Property)
+            .OrderBy(d => d.ExpiryDate) // Show earliest expiring first
+            .ToListAsync();
+
+        var today = DateTime.Now;
+        var next30 = today.AddDays(30);
+
+        _expiredCount = _documents.Count(d => d.ExpiryDate.HasValue && d.ExpiryDate < today);
+        _expiringSoonCount = _documents.Count(d => d.ExpiryDate.HasValue && d.ExpiryDate >= today && d.ExpiryDate <= next30);
+        _validCount = _documents.Count(d => !d.ExpiryDate.HasValue || d.ExpiryDate > next30);
+    }
+
+    private bool FilterFunc(ComplianceDocument element)
+    {
+        if (string.IsNullOrWhiteSpace(_searchString)) return true;
+        if (element.DocumentName.Contains(_searchString, StringComparison.OrdinalIgnoreCase)) return true;
+        if (element.Property.Name.Contains(_searchString, StringComparison.OrdinalIgnoreCase)) return true;
+        return false;
+    }
+}

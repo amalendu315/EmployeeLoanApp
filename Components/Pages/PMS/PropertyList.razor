@@ -1,0 +1,240 @@
+﻿@page "/pms/properties/all"
+@page "/pms/properties/{Type}"
+@using EmployeeLoanApp.Components.Layout
+@using EmployeeLoanApp.Models.PMS
+@using EmployeeLoanApp.Data
+@using EmployeeLoanApp.Services.PMS
+@using Microsoft.EntityFrameworkCore
+@using System.Text.Json
+@layout PMSLayout
+@inject IDbContextFactory<EmployeeLoanContext> DbFactory
+@inject NavigationManager Nav
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>PMS | Property List</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4 mb-8">
+
+    <!-- HEADER SECTION -->
+    <div class="d-flex justify-space-between align-center mb-6">
+        <div>
+            <MudText Typo="Typo.h5" Style="font-weight: 700; color: #0F172A;">@_pageTitle</MudText>
+            <div class="d-flex gap-2 mt-1">
+                <MudText Typo="Typo.body2" Color="Color.Secondary">Manage your real estate portfolio</MudText>
+                @if (_properties.Any())
+                {
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Text" Color="Color.Primary">@_properties.Count Records</MudChip>
+                }
+            </div>
+        </div>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Href="/pms/properties/add" Class="rounded-lg px-4">Add Property</MudButton>
+    </div>
+
+    <!-- DATA TABLE -->
+    <MudPaper Elevation="0" Outlined="true" Class="rounded-lg overflow-hidden">
+        <MudTable Items="@_properties" Dense="true" Hover="true" Striped="false" Elevation="0" Filter="new Func<Property, bool>(FilterFunc1)" @bind-SelectedItem="_selectedItem" Class="modern-table">
+            <ToolBarContent>
+                <MudTextField @bind-Value="_searchString" Placeholder="Search properties..." Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Variant="Variant.Outlined" Margin="Margin.Dense" Class="my-3" Style="max-width: 400px; background: #F8FAFC;"></MudTextField>
+                <MudSpacer />
+                <MudIconButton Icon="@Icons.Material.Filled.FilterList" Color="Color.Default" />
+                <MudIconButton Icon="@Icons.Material.Filled.FileDownload" Color="Color.Default" />
+            </ToolBarContent>
+
+            <HeaderContent>
+                <MudTh><MudTableSortLabel SortBy="new Func<Property, object>(x => x.Name)">Property Name</MudTableSortLabel></MudTh>
+                <MudTh><MudTableSortLabel SortBy="new Func<Property, object>(x => x.Category)">Category</MudTableSortLabel></MudTh>
+                <MudTh>Location</MudTh>
+                <MudTh>Area</MudTh>
+                <MudTh>Status</MudTh>
+                <MudTh Style="text-align:right">Actions</MudTh>
+            </HeaderContent>
+
+            <RowTemplate>
+                <MudTd DataLabel="Name">
+                    <div class="d-flex align-center gap-3">
+                        <MudAvatar Color="@GetCategoryColor(context.Category)" Variant="Variant.Filled" Size="Size.Medium" Rounded="true">
+                            <MudIcon Icon="@GetCategoryIcon(context.Category)" Size="Size.Small" />
+                        </MudAvatar>
+                        <div class="d-flex flex-column">
+                            <MudText Typo="Typo.subtitle2" Style="font-weight:600;">@context.Name</MudText>
+                            @if (!string.IsNullOrEmpty(context.PropertyIdentifier))
+                            {
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">ID: @context.PropertyIdentifier</MudText>
+                            }
+                        </div>
+                    </div>
+                </MudTd>
+                <MudTd DataLabel="Category">
+                    <MudText Typo="Typo.body2">@context.Category</MudText>
+                </MudTd>
+                <MudTd DataLabel="Location">
+                    <MudText Typo="Typo.body2" Class="text-truncate" Style="max-width: 200px;">
+                        @context.LocationAddress
+                    </MudText>
+                </MudTd>
+                <MudTd DataLabel="Area">
+                    <MudText Typo="Typo.body2"><b>@context.AreaMeasurement</b> <span style="color:#94a3b8; font-size:0.75rem;">@GetUnit(context.Category)</span></MudText>
+                </MudTd>
+                <MudTd DataLabel="Status">
+                    @if (context.OwnershipType == OwnershipType.Owned)
+                    {
+                        @if (context.RegistrationStatus == RegistrationStatus.Registered)
+                        {
+                            <MudChip T="string" Color="Color.Success" Size="Size.Small" Icon="@Icons.Material.Filled.CheckCircle">Registered</MudChip>
+                        }
+                        else
+                        {
+                            <MudChip T="string" Color="Color.Warning" Size="Size.Small" Icon="@Icons.Material.Filled.Warning">Unregistered</MudChip>
+                        }
+                    }
+                    else
+                    {
+                        <MudChip T="string" Color="Color.Info" Size="Size.Small" Icon="@Icons.Material.Filled.Key">Leased</MudChip>
+                    }
+                </MudTd>
+                <MudTd DataLabel="Actions" Style="text-align:right">
+                    <MudMenu Icon="@Icons.Material.Filled.MoreHoriz" Color="Color.Default" Size="Size.Small" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+                        <MudMenuItem Icon="@Icons.Material.Filled.Visibility" IconColor="Color.Primary" OnClick="@(() => Nav.NavigateTo($"/pms/properties/view/{context.Id}"))">View Details</MudMenuItem>
+                        <MudMenuItem Icon="@Icons.Material.Filled.Edit">Edit</MudMenuItem>
+                    </MudMenu>
+                </MudTd>
+            </RowTemplate>
+            <PagerContent>
+                <MudTablePager />
+            </PagerContent>
+        </MudTable>
+    </MudPaper>
+</MudContainer>
+
+<style>
+    .modern-table .mud-table-head .mud-table-cell {
+        color: #64748B;
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 0.75rem;
+        letter-spacing: 0.5px;
+        background-color: #F8FAFC;
+        border-bottom: 1px solid #E2E8F0;
+    }
+
+    .text-truncate {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+</style>
+
+@code {
+    [Parameter] public string? Type { get; set; } // "owned" or "leased"
+
+    private List<Property> _properties = new();
+    private Property _selectedItem;
+    private string _searchString = "";
+    private string _pageTitle = "All Properties";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        // 1. Get User Permissions
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        PmsAccessConfig config = new();
+        bool isSuperAdmin = false;
+
+        if (user.Identity?.IsAuthenticated == true)
+        {
+            if (user.IsInRole("SuperAdmin") || user.HasClaim(c => c.Type == "IsSuperAdmin" && c.Value == "True"))
+            {
+                isSuperAdmin = true;
+            }
+            else
+            {
+                var claim = user.FindFirst("AccessConfig");
+                if (claim != null) { try { config = JsonSerializer.Deserialize<PmsAccessConfig>(claim.Value) ?? new(); } catch { } }
+            }
+        }
+
+        // 2. Query Data
+        using var context = DbFactory.CreateDbContext();
+        var query = context.Properties.AsNoTracking().AsQueryable();
+
+        // 3. Apply RBAC Logic
+        if (!isSuperAdmin && !config.ViewAllProperties)
+        {
+            // Case A: Specific Properties Override (Strict)
+            if (config.SpecificProperties != null && config.SpecificProperties.Any())
+            {
+                var allowedIds = config.SpecificProperties.Select(p => p.PropertyId).ToList();
+                query = query.Where(p => allowedIds.Contains(p.Id));
+            }
+            // Case B: Company-based Fallback (Only if no specific properties selected)
+            else if (config.AllowedCompanyIds != null && config.AllowedCompanyIds.Any())
+            {
+                query = query.Where(p => config.AllowedCompanyIds.Contains(p.PurchaserId));
+            }
+            // Case C: View All Companies selected but no properties specific? (Implicit All access for those companies)
+            else if (config.ViewAllCompanies)
+            {
+                // If they can view all companies, do they view all properties?
+                // Assuming logic: if specific properties are empty, fall back to broad company access.
+                // Since ViewAllCompanies is true, we don't filter PurchaserId.
+            }
+            // Case D: No Access
+            else
+            {
+                query = query.Where(p => false); // Return empty
+            }
+        }
+
+        // 4. Apply Page Filters (Owned/Leased)
+        if (string.Equals(Type, "owned", StringComparison.OrdinalIgnoreCase))
+        {
+            query = query.Where(p => p.OwnershipType == OwnershipType.Owned);
+            _pageTitle = "Owned Properties";
+        }
+        else if (string.Equals(Type, "leased", StringComparison.OrdinalIgnoreCase))
+        {
+            query = query.Where(p => p.OwnershipType == OwnershipType.Leased);
+            _pageTitle = "Leased Properties";
+        }
+        else
+        {
+            _pageTitle = "All Properties";
+        }
+
+        _properties = await query.OrderByDescending(p => p.Id).ToListAsync();
+    }
+
+    private bool FilterFunc1(Property element) => FilterFunc(element, _searchString);
+
+    private bool FilterFunc(Property element, string searchString)
+    {
+        if (string.IsNullOrWhiteSpace(searchString)) return true;
+        if (element.Name.Contains(searchString, StringComparison.OrdinalIgnoreCase)) return true;
+        if (element.LocationAddress.Contains(searchString, StringComparison.OrdinalIgnoreCase)) return true;
+        return false;
+    }
+
+    // UI Helpers
+    private Color GetCategoryColor(OwnedPropertyCategory category) => category switch
+    {
+        OwnedPropertyCategory.Land => Color.Success,
+        OwnedPropertyCategory.CommercialOffice => Color.Info,
+        OwnedPropertyCategory.Flat => Color.Warning,
+        _ => Color.Primary
+    };
+
+    private string GetCategoryIcon(OwnedPropertyCategory category) => category switch
+    {
+        OwnedPropertyCategory.Land => Icons.Material.Filled.Landscape,
+        OwnedPropertyCategory.CommercialOffice => Icons.Material.Filled.Business,
+        OwnedPropertyCategory.Flat => Icons.Material.Filled.Apartment,
+        _ => Icons.Material.Filled.Home
+    };
+
+    private string GetUnit(OwnedPropertyCategory category) => category.ToString().Contains("Land") ? "Acres" : "SqFt";
+}
